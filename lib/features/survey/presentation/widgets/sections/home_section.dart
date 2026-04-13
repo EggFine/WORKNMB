@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../app/app_identity.dart';
+import '../../../../../app/i18n/app_strings.dart';
 import '../../../../../app/theme/design_tokens.dart';
 import '../../../../../app/theme/text_styles.dart';
 import '../../controllers/survey_controller.dart';
-import '../../../domain/survey_data.dart';
 import '../common/survey_common_widgets.dart';
 
-/// 首页 / 登陆页：品牌聚焦，一个主 CTA 直达问卷。
-///
-/// 布局策略：
-/// - 全部内容纵向居中；在任何视口下保持视觉稳定。
-/// - 内容最大宽度 560dp，避免大屏下文字过宽。
-/// - 有部分答案时将 CTA 改为"继续答题"，并显示进度；全部答完则额外提供"查看我的结果"次按钮。
+/// 首页 / 登陆页：品牌聚焦 + 一个主 CTA 直达问卷。
 class HomeSection extends StatelessWidget {
   const HomeSection({
     required this.controller,
@@ -29,10 +24,13 @@ class HomeSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
     final hasProgress = controller.answeredCount > 0;
     final allAnswered = controller.allAnswered;
 
-    final ctaLabel = allAnswered ? '重新开始答题' : (hasProgress ? '继续答题' : '开始答题');
+    final ctaLabel = allAnswered
+        ? strings.homeRestartButton
+        : (hasProgress ? strings.homeContinueButton : strings.homeStartButton);
     final ctaIcon = allAnswered
         ? Icons.replay_rounded
         : Icons.play_arrow_rounded;
@@ -54,7 +52,6 @@ class HomeSection extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // —— 品牌徽标区 ——
                       _BrandMark(),
                       const SizedBox(height: AppSpacing.xl),
                       Text(
@@ -76,13 +73,11 @@ class HomeSection extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.xl),
                       Text(
-                        '用 ${questions.length} 个维度量化你当前工作的性价比，'
-                        '包含工时、通勤、加班、休息、月薪等关键指标。',
+                        strings.homeIntro,
                         textAlign: TextAlign.center,
                         style: theme.bodyLargeMuted,
                       ),
                       const SizedBox(height: AppSpacing.xxl),
-                      // —— 主 CTA ——
                       _PrimaryCta(
                         label: ctaLabel,
                         icon: ctaIcon,
@@ -93,15 +88,17 @@ class HomeSection extends StatelessWidget {
                         TextButton.icon(
                           onPressed: onViewResult,
                           icon: const Icon(Icons.insights_rounded),
-                          label: const Text('查看我的结果'),
+                          label: Text(strings.homeViewResultButton),
                         ),
                       ],
                       const SizedBox(height: AppSpacing.xl),
-                      // —— 元信息 / 进度 ——
                       if (hasProgress && !allAnswered)
                         _ProgressIndicatorStrip(controller: controller)
                       else
-                        const _MetaBullets(),
+                        _MetaBullets(
+                          totalQuestions: controller.questions.length,
+                          strings: strings,
+                        ),
                     ],
                   ),
                 ),
@@ -149,7 +146,6 @@ class _BrandMark extends StatelessWidget {
   }
 }
 
-/// 放大的主 CTA 按钮。
 class _PrimaryCta extends StatelessWidget {
   const _PrimaryCta({
     required this.label,
@@ -180,9 +176,11 @@ class _PrimaryCta extends StatelessWidget {
   }
 }
 
-/// 元信息条（首次进入显示）：题数 + 预计时长。
 class _MetaBullets extends StatelessWidget {
-  const _MetaBullets();
+  const _MetaBullets({required this.totalQuestions, required this.strings});
+
+  final int totalQuestions;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -202,24 +200,31 @@ class _MetaBullets extends StatelessWidget {
       color: scheme.onSurfaceVariant,
     );
 
+    // 题数 meta 显示方式：用 strings.homeProgressText 的前半段文案不合适，
+    // 这里直接用 "13 Q" / "13 问" 的本地化组合
+    final String questionsLabel = switch (strings.locale.locale.languageCode) {
+      'ja' => '$totalQuestions 問',
+      'en' => '$totalQuestions Q',
+      _ => '$totalQuestions 题',
+    };
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text('${questions.length} 题', style: textStyle),
+        Text(questionsLabel, style: textStyle),
         const SizedBox(width: AppSpacing.sm),
         dot(),
         const SizedBox(width: AppSpacing.sm),
-        Text('约 5 分钟', style: textStyle),
+        Text(strings.homeMetaTime, style: textStyle),
         const SizedBox(width: AppSpacing.sm),
         dot(),
         const SizedBox(width: AppSpacing.sm),
-        Text('可随时返回调整', style: textStyle),
+        Text(strings.homeMetaFreeEdit, style: textStyle),
       ],
     );
   }
 }
 
-/// 进度条（已有部分答案时显示）。
 class _ProgressIndicatorStrip extends StatelessWidget {
   const _ProgressIndicatorStrip({required this.controller});
 
@@ -229,6 +234,7 @@ class _ProgressIndicatorStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
 
     return Column(
       children: [
@@ -242,7 +248,10 @@ class _ProgressIndicatorStrip extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.xs),
             Text(
-              '已完成 ${controller.answeredCount} / ${questions.length}',
+              strings.homeProgressText(
+                controller.answeredCount,
+                controller.questions.length,
+              ),
               style: theme.textTheme.labelLarge?.copyWith(
                 color: scheme.onSurface,
                 fontWeight: FontWeight.w600,

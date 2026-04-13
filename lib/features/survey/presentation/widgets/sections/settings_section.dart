@@ -3,46 +3,35 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../app/app_identity.dart';
+import '../../../../../app/i18n/app_locale.dart';
+import '../../../../../app/i18n/app_strings.dart';
+import '../../../../../app/state/app_preferences.dart';
 import '../../../../../app/theme/app_palette.dart';
 import '../../../../../app/theme/design_tokens.dart';
 import '../../../../../app/theme/text_styles.dart';
 import '../../../../../app/widgets/app_card.dart';
 import '../../../../../app/widgets/app_section_header.dart';
 import '../../controllers/survey_controller.dart';
-import '../../../domain/survey_data.dart';
 
-/// 设置页：外观（主题 + 色板）+ 测试管理（重置）+ 关于。
+/// 设置页：外观（主题 + 色板 + 语言）+ 测试管理（重置）+ 关于。
 class SettingsSection extends StatelessWidget {
   const SettingsSection({
     required this.controller,
-    required this.themeMode,
-    required this.selectedPalette,
-    required this.onThemeModeChanged,
-    required this.onPaletteChanged,
-    required this.onRestart,
+    required this.preferences,
     super.key,
   });
 
   final SurveyController controller;
-  final ThemeMode themeMode;
-  final AppPalette selectedPalette;
-  final ValueChanged<ThemeMode> onThemeModeChanged;
-  final ValueChanged<AppPalette> onPaletteChanged;
-  final VoidCallback onRestart;
+  final AppPreferences preferences;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _AppearanceCard(
-          themeMode: themeMode,
-          selectedPalette: selectedPalette,
-          onThemeModeChanged: onThemeModeChanged,
-          onPaletteChanged: onPaletteChanged,
-        ),
+        _AppearanceCard(preferences: preferences),
         const SizedBox(height: AppSpacing.md),
-        _ManageTestCard(controller: controller, onRestart: onRestart),
+        _ManageTestCard(controller: controller, onRestart: controller.restart),
         const SizedBox(height: AppSpacing.md),
         const _AboutCard(),
       ],
@@ -51,79 +40,97 @@ class SettingsSection extends StatelessWidget {
 }
 
 class _AppearanceCard extends StatelessWidget {
-  const _AppearanceCard({
-    required this.themeMode,
-    required this.selectedPalette,
-    required this.onThemeModeChanged,
-    required this.onPaletteChanged,
-  });
+  const _AppearanceCard({required this.preferences});
 
-  final ThemeMode themeMode;
-  final AppPalette selectedPalette;
-  final ValueChanged<ThemeMode> onThemeModeChanged;
-  final ValueChanged<AppPalette> onPaletteChanged;
+  final AppPreferences preferences;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionHeader(
-            title: '外观设置',
-            description: '主题和色板会实时重绘 WORKNMB，用来快速验证不同视觉语义下的层级和可读性。',
+          AppSectionHeader(
+            title: strings.appearanceTitle,
+            description: strings.appearanceDescription,
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('主题模式', style: theme.textTheme.titleMedium),
+          Text(strings.themeModeLabel, style: theme.textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: SegmentedButton<ThemeMode>(
               showSelectedIcon: false,
-              selected: {themeMode},
+              selected: {preferences.themeMode},
               onSelectionChanged: (selection) {
-                onThemeModeChanged(selection.first);
+                preferences.setThemeMode(selection.first);
               },
-              segments: const [
+              segments: [
                 ButtonSegment(
                   value: ThemeMode.light,
-                  icon: Icon(Icons.light_mode_rounded),
-                  label: Text('浅色'),
+                  icon: const Icon(Icons.light_mode_rounded),
+                  label: Text(strings.themeModeLight),
                 ),
                 ButtonSegment(
                   value: ThemeMode.dark,
-                  icon: Icon(Icons.dark_mode_rounded),
-                  label: Text('深色'),
+                  icon: const Icon(Icons.dark_mode_rounded),
+                  label: Text(strings.themeModeDark),
                 ),
                 ButtonSegment(
                   value: ThemeMode.system,
-                  icon: Icon(Icons.settings_suggest_rounded),
-                  label: Text('系统'),
+                  icon: const Icon(Icons.settings_suggest_rounded),
+                  label: Text(strings.themeModeSystem),
                 ),
               ],
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('动态色板', style: theme.textTheme.titleMedium),
+          Text(strings.paletteLabel, style: theme.textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: SegmentedButton<AppPalette>(
               showSelectedIcon: false,
-              selected: {selectedPalette},
+              selected: {preferences.palette},
               onSelectionChanged: (selection) {
-                onPaletteChanged(selection.first);
+                preferences.setPalette(selection.first);
               },
               segments: [
                 for (final palette in AppPalette.values)
                   ButtonSegment<AppPalette>(
                     value: palette,
                     icon: Icon(palette.icon, color: palette.seedColor),
-                    label: Text(palette.label),
+                    label: Text(_paletteLabel(palette, strings)),
                   ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            strings.languageSectionTitle,
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<AppLocale?>(
+              showSelectedIcon: false,
+              selected: {preferences.locale},
+              onSelectionChanged: (selection) {
+                preferences.setLocale(selection.first);
+              },
+              segments: [
+                ButtonSegment(
+                  value: null,
+                  icon: const Icon(Icons.translate_rounded),
+                  label: Text(strings.languageSystem),
+                ),
+                for (final l in AppLocale.values)
+                  ButtonSegment(value: l, label: Text(l.displayName)),
               ],
             ),
           ),
@@ -140,14 +147,14 @@ class _AppearanceCard extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  selectedPalette.icon,
-                  color: selectedPalette.seedColor,
+                  preferences.palette.icon,
+                  color: preferences.palette.seedColor,
                   size: AppIconSize.md,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    selectedPalette.description,
+                    _paletteDesc(preferences.palette, strings),
                     style: theme.bodyMediumMuted,
                   ),
                 ),
@@ -158,6 +165,18 @@ class _AppearanceCard extends StatelessWidget {
       ),
     );
   }
+
+  String _paletteLabel(AppPalette p, AppStrings s) => switch (p) {
+    AppPalette.tide => s.paletteTideLabel,
+    AppPalette.ember => s.paletteEmberLabel,
+    AppPalette.moss => s.paletteMossLabel,
+  };
+
+  String _paletteDesc(AppPalette p, AppStrings s) => switch (p) {
+    AppPalette.tide => s.paletteTideDesc,
+    AppPalette.ember => s.paletteEmberDesc,
+    AppPalette.moss => s.paletteMossDesc,
+  };
 }
 
 class _ManageTestCard extends StatelessWidget {
@@ -169,15 +188,16 @@ class _ManageTestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppStrings.of(context);
     final hasAnswers = controller.answers.isNotEmpty;
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionHeader(
-            title: '测试管理',
-            description: '清除当前所有答案，回到首页从头开始。这个动作不可撤销。',
+          AppSectionHeader(
+            title: strings.manageTitle,
+            description: strings.manageDescription,
           ),
           const SizedBox(height: AppSpacing.lg),
           Row(
@@ -194,8 +214,11 @@ class _ManageTestCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   hasAnswers
-                      ? '当前已答 ${controller.answeredCount} / ${questions.length} 题'
-                      : '当前没有已答题目，暂无需重置。',
+                      ? strings.manageHasAnswers(
+                          controller.answeredCount,
+                          controller.questions.length,
+                        )
+                      : strings.manageNoAnswers,
                   style: theme.bodyMediumMuted,
                 ),
               ),
@@ -207,7 +230,7 @@ class _ManageTestCard extends StatelessWidget {
             child: FilledButton.tonalIcon(
               onPressed: hasAnswers ? onRestart : null,
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text('重置测试'),
+              label: Text(strings.manageResetButton),
             ),
           ),
         ],
@@ -222,12 +245,13 @@ class _AboutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppStrings.of(context);
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionHeader(title: '关于'),
+          AppSectionHeader(title: strings.aboutTitle),
           const SizedBox(height: AppSpacing.md),
           Text(
             appShortName,
@@ -239,25 +263,18 @@ class _AboutCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.xxs),
           Text(appFullName, style: theme.bodyMediumMuted),
           const SizedBox(height: AppSpacing.md),
-          Text(
-            '这个评测用 ${questions.length} 个维度量化你当前工作的性价比：'
-            '工时、通勤、加班频率、加班补偿、休息日、午休、远程办公、'
-            '年终奖、年假、环境、同事、晋升、月薪。'
-            '按"基础分 × 薪资系数"得到 0-100 的综合评分，配合 S/A/B/C/D 等级'
-            '和薄弱项建议，帮你判断是否值得留下。',
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-          ),
+          Text(strings.homeIntro, style: theme.bodyMediumMuted),
           const SizedBox(height: AppSpacing.lg),
           _LinkRow(
             icon: Icons.code_rounded,
-            label: '源码仓库',
+            label: strings.aboutRepoLabel,
             url: appRepoUrl,
             subtitle: 'EggFine/WORKNMB',
           ),
           const SizedBox(height: AppSpacing.sm),
           _LinkRow(
             icon: Icons.public_rounded,
-            label: '在线预览',
+            label: strings.aboutPreviewLabel,
             url: appPreviewUrl,
             subtitle: appPreviewUrl.replaceFirst('https://', ''),
           ),
@@ -267,11 +284,6 @@ class _AboutCard extends StatelessWidget {
   }
 }
 
-/// 可点击的链接行：左图标 + 标签 + 子文字 + 右箭头。
-///
-/// 点击：
-/// - 主操作：调用 [launchUrl] 用外部浏览器打开
-/// - 失败兜底：复制到剪贴板 + SnackBar 提示
 class _LinkRow extends StatelessWidget {
   const _LinkRow({
     required this.icon,
@@ -286,6 +298,7 @@ class _LinkRow extends StatelessWidget {
   final String subtitle;
 
   Future<void> _open(BuildContext context) async {
+    final strings = AppStrings.of(context);
     final uri = Uri.parse(url);
     bool ok = false;
     try {
@@ -294,12 +307,11 @@ class _LinkRow extends StatelessWidget {
       ok = false;
     }
     if (ok || !context.mounted) return;
-    // 打不开时 fall back 到剪贴板
     await Clipboard.setData(ClipboardData(text: url));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('无法直接打开，已复制链接到剪贴板：$url')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(strings.clipboardFallback(url))));
   }
 
   @override

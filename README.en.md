@@ -9,7 +9,7 @@
 
 > **Workplace Overall Rating & Key Numeric Metric Benchmark** — a quantitative job rating calculator.
 
-Score your current job across 13 weighted dimensions, apply a salary coefficient, and get a 0–100 overall grade (S/A/B/C/D) with actionable improvement suggestions.
+Score your current job across 13 weighted dimensions, apply a salary coefficient, and get a 0–100 overall grade (S/A/B/C/D) with actionable improvement suggestions. **Ships with three locales — 简体中文 / 日本語 / English** — each with scoring anchors and salary baselines calibrated to the local labor market.
 
 **Live demo**: <https://worknmb.eggfine.com> (Cloudflare Pages, auto-redeployed on every push to `main`).
 
@@ -92,6 +92,29 @@ All questions live in `lib/features/survey/domain/survey_data.dart`. Editing the
 
 ## UI Highlights
 
+### Internationalization (i18n)
+
+Three locales are bundled: **简体中文 / 日本語 / English**. Switch anytime in **Settings** or let the app follow the system locale.
+
+Switching a locale re-translates every UI string, question, option, rating label, grade description and improvement tip. **Already-given answers are preserved** — question IDs are shared across locales, so the value you entered for `workHours` in Chinese still scores the same after you switch to English.
+
+**Each locale has its own scoring anchors** — not mechanical translations, but calibrated to the local labor market:
+
+| Dimension | China (zh) | Japan (ja) | USA (en) |
+|---|---|---|---|
+| Salary baseline (×1.0 coefficient) | ¥10,000 | ¥300,000 | $5,000 |
+| Work hours best / worst (h) | 8 / 13 | 8 / 12 | 8 / 11 |
+| Commute best / worst (min) | 10 / 90 | 15 / 90 | 15 / 75 |
+| Overtime days best / worst (day/wk) | 0 / 5 | 0 / 4 | 0 / 4 |
+| Lunch break best / worst (min) | 90 / 15 | 60 / 15 | 60 / 15 |
+| WFH best / worst (day/wk) | 3 / 0 | 3 / 0 | 4 / 0 |
+| Annual bonus best / worst (mo) | 6 / 0 | 5 / 0 | 2 / 0 |
+| PTO best / worst (days) | 20 / 5 | 20 / 5 | 25 / 10 |
+
+Examples of why:
+- **Japan**: A 15-minute commute is already exceptional (Tokyo average is 1h+); 5-month bonus is strong (summer + winter 賞与 tradition); baseline 300,000 JPY reflects Tokyo regular-employee median.
+- **USA**: 11h is the realistic floor for burnout in salaried-exempt roles; 4-day WFH is the ceiling of hybrid culture; 25 days PTO is the aspirational target and 10 days is the implicit floor; 2-month bonuses are already strong (most US jobs have little or no annual bonus).
+
 ### Responsive layout
 
 | Viewport width | Layout |
@@ -139,9 +162,15 @@ lib/
 ├── main.dart                              entrypoint
 ├── app/                                   non-business shell
 │   ├── app_identity.dart                  brand constants (name, repo URL, preview URL)
-│   ├── survey_app.dart                    MaterialApp wiring
+│   ├── survey_app.dart                    MaterialApp wiring (theme + i18n)
+│   ├── i18n/                              internationalization
+│   │   ├── app_locale.dart                AppLocale enum (zh / ja / en)
+│   │   ├── app_strings.dart               container for all UI strings + InheritedWidget
+│   │   ├── strings_zh.dart                Chinese translations
+│   │   ├── strings_ja.dart                Japanese translations
+│   │   └── strings_en.dart                English translations
 │   ├── state/
-│   │   └── app_preferences.dart           theme / palette preferences (ChangeNotifier)
+│   │   └── app_preferences.dart           theme / palette / locale preferences (ChangeNotifier)
 │   ├── theme/
 │   │   ├── design_tokens.dart             single source of truth for visual primitives
 │   │   ├── text_styles.dart               ThemeData extensions (bodyMediumMuted, etc.)
@@ -153,7 +182,11 @@ lib/
 │       └── responsive.dart                breakpoint helpers
 └── features/survey/                       feature layer
     ├── domain/
-    │   └── survey_data.dart               question bank + scoring rules + advice copy
+    │   ├── survey_data.dart               locale-agnostic data models + scoring formula
+    │   ├── localized_survey.dart          LocalizedSurvey container + factory
+    │   ├── questions_zh.dart              CN question bank (¥10k baseline)
+    │   ├── questions_ja.dart              JP question bank (¥300k baseline)
+    │   └── questions_en.dart              US question bank ($5k baseline)
     └── presentation/
         ├── controllers/
         │   └── survey_controller.dart     answer state + score computation

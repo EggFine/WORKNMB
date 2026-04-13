@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_identity.dart';
+import '../../../../app/i18n/app_strings.dart';
 import '../../../../app/state/app_preferences.dart';
 import '../../../../app/theme/design_tokens.dart';
 import '../../../../app/theme/text_styles.dart';
 import '../../../../app/widgets/responsive.dart';
+import '../../domain/localized_survey.dart';
+import '../../domain/questions_zh.dart';
 import '../controllers/survey_controller.dart';
 import '../widgets/common/survey_common_widgets.dart';
 import '../widgets/sections/home_section.dart';
@@ -28,8 +31,17 @@ class _SurveyHomePageState extends State<SurveyHomePage> {
   @override
   void initState() {
     super.initState();
-    controller = SurveyController();
+    // 初始化时使用默认 locale 的题库；切语言时会在 didChangeDependencies 更新
+    controller = SurveyController(survey: surveyZh);
     mergedListenable = Listenable.merge([controller, widget.preferences]);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 从 AppStringsScope 里拿当前 locale 对应的题库
+    final strings = AppStrings.of(context);
+    controller.updateSurvey(surveyFor(strings.locale));
   }
 
   @override
@@ -38,8 +50,29 @@ class _SurveyHomePageState extends State<SurveyHomePage> {
     super.dispose();
   }
 
+  /// 获取某个 section 的本地化标题。
+  String _sectionLabel(AppStrings s, AppSection section) => switch (section) {
+    AppSection.home => s.sectionHome,
+    AppSection.questionnaire => s.sectionQuestionnaire,
+    AppSection.result => s.sectionResult,
+    AppSection.settings => s.sectionSettings,
+  };
+
+  /// 获取某个 section 的本地化描述（用于 PageHeader）。
+  String _sectionDescription(AppStrings s, AppSection section) =>
+      switch (section) {
+        AppSection.home => s.homeDescription,
+        AppSection.questionnaire => s.questionnaireDescription,
+        AppSection.result =>
+          controller.allAnswered
+              ? s.resultDescriptionUnlocked
+              : s.resultDescriptionLocked,
+        AppSection.settings => s.settingsDescription,
+      };
+
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     return AnimatedBuilder(
       animation: mergedListenable,
       builder: (context, _) {
@@ -50,11 +83,11 @@ class _SurveyHomePageState extends State<SurveyHomePage> {
             final extendedRail = Responsive.useExtendedRail(viewportWidth);
 
             return Scaffold(
-              // 去除 AppBar：品牌由侧边栏 logo 承担；当前 tab 标题由主内容区页头承担
               bottomNavigationBar: useRail
                   ? null
                   : _MobileNavigationBar(
                       section: controller.section,
+                      labelFor: (sec) => _sectionLabel(strings, sec),
                       onSelected: controller.selectSection,
                     ),
               body: SafeArea(
@@ -65,9 +98,12 @@ class _SurveyHomePageState extends State<SurveyHomePage> {
                       _BrandedNavigationRail(
                         section: controller.section,
                         extended: extendedRail,
+                        labelFor: (sec) => _sectionLabel(strings, sec),
                         onSelected: controller.selectSection,
                       ),
-                    Expanded(child: _buildContent(useRail: useRail)),
+                    Expanded(
+                      child: _buildContent(useRail: useRail, strings: strings),
+                    ),
                   ],
                 ),
               ),
@@ -78,17 +114,15 @@ class _SurveyHomePageState extends State<SurveyHomePage> {
     );
   }
 
-  Widget _buildContent({required bool useRail}) {
+  Widget _buildContent({required bool useRail, required AppStrings strings}) {
     final isHome = controller.section == AppSection.home;
 
-    // Home 页完全沉浸：无页头、无滚动容器外壳，登陆页自己占满视口
     if (isHome) {
       return FadeSlideSwitcher(
         child: KeyedSubtree(key: ValueKey(controller.section), child: _home()),
       );
     }
 
-    // 其他页面：顶部统一的 PageHeader（tab 标题 + 简短描述）+ section 内容
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
         useRail ? AppSpacing.xl : AppSpacing.md,
@@ -105,8 +139,8 @@ class _SurveyHomePageState extends State<SurveyHomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _PageHeader(
-                title: controller.section.label,
-                description: controller.sectionDescription,
+                title: _sectionLabel(strings, controller.section),
+                description: _sectionDescription(strings, controller.section),
               ),
               const SizedBox(height: AppSpacing.xl),
               FadeSlideSwitcher(
@@ -159,21 +193,22 @@ class _SurveyHomePageState extends State<SurveyHomePage> {
       ),
       AppSection.settings => SettingsSection(
         controller: controller,
-        themeMode: widget.preferences.themeMode,
-        selectedPalette: widget.preferences.palette,
-        onThemeModeChanged: widget.preferences.setThemeMode,
-        onPaletteChanged: widget.preferences.setPalette,
-        onRestart: controller.restart,
+        preferences: widget.preferences,
       ),
     };
   }
 }
 
-/// 底部导航（窄屏）。4 个 destination，与 Rail 对齐。
+/// 底部导航（窄屏）。4 个 destination。
 class _MobileNavigationBar extends StatelessWidget {
-  const _MobileNavigationBar({required this.section, required this.onSelected});
+  const _MobileNavigationBar({
+    required this.section,
+    required this.labelFor,
+    required this.onSelected,
+  });
 
   final AppSection section;
+  final String Function(AppSection) labelFor;
   final ValueChanged<AppSection> onSelected;
 
   @override
@@ -186,7 +221,7 @@ class _MobileNavigationBar extends StatelessWidget {
           NavigationDestination(
             icon: Icon(item.icon),
             selectedIcon: Icon(item.selectedIcon),
-            label: item.label,
+            label: labelFor(item),
           ),
       ],
     );
@@ -194,20 +229,17 @@ class _MobileNavigationBar extends StatelessWidget {
 }
 
 /// 品牌化的 NavigationRail（PC 端）。
-///
-/// 在 Material 原生 NavigationRail 基础上：
-/// - `leading`：品牌徽标（+ 名称，extended 模式下）。
-/// - 间距对齐设计令牌。
-/// - 收窄时显示紧凑样式；extended 时显示全名与副标题。
 class _BrandedNavigationRail extends StatelessWidget {
   const _BrandedNavigationRail({
     required this.section,
     required this.extended,
+    required this.labelFor,
     required this.onSelected,
   });
 
   final AppSection section;
   final bool extended;
+  final String Function(AppSection) labelFor;
   final ValueChanged<AppSection> onSelected;
 
   @override
@@ -253,7 +285,7 @@ class _BrandedNavigationRail extends StatelessWidget {
                       ),
                       child: Icon(item.selectedIcon),
                     ),
-                    label: Text(item.label),
+                    label: Text(labelFor(item)),
                   ),
               ],
             ),
@@ -273,8 +305,6 @@ class _RailBrandHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    // 侧边栏 leading 仅显示 logo 图标 —— 品牌文字由顶部 AppBar 承担。
-    // 目的是避免品牌标题在 AppBar + 侧边栏两处重复出现。
     final logo = Container(
       width: 44,
       height: 44,
@@ -309,9 +339,6 @@ class _RailBrandHeader extends StatelessWidget {
 }
 
 /// 页面顶部的标准页头：大字号 tab 标题 + 次要描述。
-///
-/// 取代了顶部 AppBar 的"当前页面"指示功能 —— 让 tab 标题属于主内容区，
-/// 而不是悬浮于屏幕顶部的 chrome。
 class _PageHeader extends StatelessWidget {
   const _PageHeader({required this.title, this.description});
 

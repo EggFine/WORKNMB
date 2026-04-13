@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../app/i18n/app_strings.dart';
 import '../../../../../app/theme/app_palette.dart';
 import '../../../../../app/theme/design_tokens.dart';
 import '../../../../../app/theme/text_styles.dart';
@@ -44,10 +45,6 @@ class ResultSection extends StatelessWidget {
   }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  未解锁（未答完所有题）
-// ════════════════════════════════════════════════════════════════════════════
-
 class _LockedResult extends StatelessWidget {
   const _LockedResult({
     required this.controller,
@@ -61,6 +58,7 @@ class _LockedResult extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
 
     return AppCard(
       child: Column(
@@ -72,11 +70,10 @@ class _LockedResult extends StatelessWidget {
             color: scheme.primary,
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('评分尚未解锁', style: theme.textTheme.headlineSmall),
+          Text(strings.resultLockedTitle, style: theme.textTheme.headlineSmall),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            '还剩 ${controller.remainingCount} 道题未完成。'
-            '完成所有题目后，会展示综合评分、等级、因子贡献和薄弱项建议。',
+            strings.resultLockedBody(controller.remainingCount),
             style: theme.bodyLargeMuted,
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -85,17 +82,13 @@ class _LockedResult extends StatelessWidget {
           FilledButton.icon(
             onPressed: onContinueQuestionnaire,
             icon: const Icon(Icons.arrow_forward_rounded),
-            label: const Text('继续答题'),
+            label: Text(strings.resultContinueButton),
           ),
         ],
       ),
     );
   }
 }
-
-// ════════════════════════════════════════════════════════════════════════════
-//  已解锁（全部答完）
-// ════════════════════════════════════════════════════════════════════════════
 
 class _UnlockedResult extends StatelessWidget {
   const _UnlockedResult({
@@ -168,11 +161,14 @@ class _ScoreSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
     final score = controller.totalScore;
     final grade = controller.grade;
     final gradeColor = GradeColorTokens.colorFor(scheme, grade);
     final salaryValue = controller.salaryValue ?? 0;
     final coefficient = controller.salaryMultiplier;
+    final gradeDesc =
+        controller.survey.gradeDescriptions[grade.label] ?? grade.label;
 
     return AppCard(
       variant: AppCardVariant.featured,
@@ -181,9 +177,8 @@ class _ScoreSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('WORKNMB 综合评分', style: theme.textTheme.titleMedium),
+          Text(strings.resultSummaryTitle, style: theme.textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
-          // —— 大分数 + 等级徽章 ——
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -215,11 +210,10 @@ class _ScoreSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            grade.description,
+            gradeDesc,
             style: theme.bodyOnContainer(scheme.onPrimaryContainer),
           ),
           const SizedBox(height: AppSpacing.xl),
-          // —— 公式与输入 ——
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -231,7 +225,7 @@ class _ScoreSummaryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '评分公式',
+                  strings.resultFormulaLabel,
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: scheme.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
@@ -239,7 +233,11 @@ class _ScoreSummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  '${controller.baseScore.toStringAsFixed(1)} 基础分 × ${coefficient.toStringAsFixed(2)} 薪资系数 = ${score.toStringAsFixed(1)}',
+                  strings.resultFormulaTemplate(
+                    controller.baseScore.toStringAsFixed(1),
+                    coefficient.toStringAsFixed(2),
+                    score.toStringAsFixed(1),
+                  ),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: scheme.onSurface,
                     fontFeatures: const [FontFeature.tabularFigures()],
@@ -247,7 +245,11 @@ class _ScoreSummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  '月薪输入：¥${_formatSalary(salaryValue)} / 月（基准 ¥10,000）',
+                  strings.resultSalaryInputTemplate(
+                    _formatSalary(salaryValue),
+                    _formatSalary(controller.survey.salaryQuestion.baseline),
+                    strings.currencySymbol,
+                  ),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
@@ -321,15 +323,16 @@ class _FactorBreakdownCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppStrings.of(context);
     final breakdown = controller.factorBreakdown;
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionHeader(
-            title: '因子贡献',
-            description: '每个维度满分 10，颜色代表相对贡献，值越高越健康。',
+          AppSectionHeader(
+            title: strings.resultFactorBreakdownTitle,
+            description: strings.resultFactorBreakdownDesc,
           ),
           const SizedBox(height: AppSpacing.lg),
           ...breakdown.map((f) {
@@ -339,6 +342,7 @@ class _FactorBreakdownCard extends StatelessWidget {
                 child: _SalaryCoefficientRow(
                   coefficient: controller.salaryMultiplier,
                   theme: theme,
+                  label: strings.resultSalaryCoefficientLabel,
                 ),
               );
             }
@@ -394,7 +398,6 @@ class _FactorRow extends StatelessWidget {
   }
 
   Color _colorFor(ColorScheme scheme, double score) {
-    // 红（0-3）→ 黄（3-7）→ 绿（7-10）的语义色，跟随主题 primary / error
     if (score >= 7) return scheme.primary;
     if (score >= 4) return scheme.tertiary;
     return scheme.error;
@@ -402,15 +405,19 @@ class _FactorRow extends StatelessWidget {
 }
 
 class _SalaryCoefficientRow extends StatelessWidget {
-  const _SalaryCoefficientRow({required this.coefficient, required this.theme});
+  const _SalaryCoefficientRow({
+    required this.coefficient,
+    required this.theme,
+    required this.label,
+  });
 
   final double coefficient;
   final ThemeData theme;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final scheme = theme.colorScheme;
-    // 系数归一化到 0-1（系数上限 2.5）
     final normalized = (coefficient / salaryCoefficientMax).clamp(0.0, 1.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,7 +430,7 @@ class _SalaryCoefficientRow extends StatelessWidget {
               color: scheme.primary,
             ),
             const SizedBox(width: AppSpacing.xxs),
-            Expanded(child: Text('月薪系数', style: theme.textTheme.titleMedium)),
+            Expanded(child: Text(label, style: theme.textTheme.titleMedium)),
             Text(
               '×${coefficient.toStringAsFixed(2)}',
               style: theme.textTheme.titleMedium?.copyWith(
@@ -459,19 +466,21 @@ class _AdviceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
     final weakest = controller.weakestFactors(limit: 3);
+    final tips = controller.survey.improvementTips;
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionHeader(
-            title: '薄弱项与建议',
-            description: '得分最低的 3 项 — 通常也是性价比被拉低的元凶。',
+          AppSectionHeader(
+            title: strings.resultAdviceTitle,
+            description: strings.resultAdviceDesc,
           ),
           const SizedBox(height: AppSpacing.md),
           ...weakest.map((f) {
-            final tip = improvementTips[f.questionId] ?? '';
+            final tip = tips[f.questionId] ?? '';
             return Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: Row(
@@ -519,12 +528,12 @@ class _AdviceCard extends StatelessWidget {
                 key: const Key('restart-button'),
                 onPressed: onRestart,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('重新测试'),
+                label: Text(strings.resultRestartButton),
               ),
               OutlinedButton.icon(
                 onPressed: onOpenOverview,
                 icon: const Icon(Icons.home_outlined),
-                label: const Text('返回首页'),
+                label: Text(strings.resultHomeButton),
               ),
             ],
           ),

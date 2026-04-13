@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../../app/i18n/app_strings.dart';
 import '../../../../../app/theme/design_tokens.dart';
 import '../../../../../app/theme/text_styles.dart';
 import '../../../../../app/widgets/app_card.dart';
@@ -86,19 +87,25 @@ class _ProgressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppStrings.of(context);
+    final total = controller.questions.length;
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionHeader(title: '完成进度'),
+          AppSectionHeader(title: strings.progressTitle),
           const SizedBox(height: AppSpacing.sm),
           AnimatedValueBar(value: controller.progress),
           const SizedBox(height: AppSpacing.sm),
           AnimatedSwitcher(
             duration: AppDurations.fast,
             child: Text(
-              '${(controller.progress * 100).round()}% 已完成 · 当前第 ${controller.currentQuestionIndex + 1}/${questions.length} 题',
+              strings.progressPercentDone(
+                (controller.progress * 100).round(),
+                controller.currentQuestionIndex + 1,
+                total,
+              ),
               key: ValueKey(
                 '${controller.answeredCount}-${controller.currentQuestionIndex}',
               ),
@@ -112,11 +119,13 @@ class _ProgressCard extends StatelessWidget {
             children: [
               StatusChip(
                 icon: Icons.track_changes_rounded,
-                label: '当前分类：${controller.question.category}',
+                label: strings.progressStatusCategory(
+                  controller.question.category,
+                ),
               ),
               StatusChip(
                 icon: Icons.assignment_turned_in_outlined,
-                label: '已答 ${controller.answeredCount} 题',
+                label: strings.progressStatusAnswered(controller.answeredCount),
               ),
             ],
           ),
@@ -128,7 +137,7 @@ class _ProgressCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            '跳转到题目',
+            strings.quickJumpTitle,
             style: theme.textTheme.labelLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w600,
@@ -153,8 +162,8 @@ class _QuickJumpRow extends StatelessWidget {
     return Wrap(
       spacing: AppSpacing.xs,
       runSpacing: AppSpacing.xs,
-      children: List.generate(questions.length, (index) {
-        final q = questions[index];
+      children: List.generate(controller.questions.length, (index) {
+        final q = controller.questions[index];
         final answered = controller.answers.containsKey(q.id);
         final current = controller.currentQuestionIndex == index;
         return _JumpDot(
@@ -206,9 +215,9 @@ class _JumpDot extends StatelessWidget {
     return Semantics(
       button: true,
       selected: current,
-      label: '跳转到第 $number 题${answered ? "，已作答" : "，未作答"}',
+      label: 'Question $number${answered ? " (answered)" : ""}',
       child: Tooltip(
-        message: '第 $number 题${answered ? "（已答）" : ""}',
+        message: '$number',
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -264,7 +273,9 @@ class _QuestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppStrings.of(context);
     final q = controller.question;
+    final total = controller.questions.length;
 
     return AppCard(
       child: FadeSlideSwitcher(
@@ -273,7 +284,6 @@ class _QuestionCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // —— 标签与进度芯片 ——
               Wrap(
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
@@ -291,21 +301,20 @@ class _QuestionCard extends StatelessWidget {
                       size: AppIconSize.sm,
                     ),
                     label: Text(
-                      '第 ${controller.currentQuestionIndex + 1}/${questions.length} 题',
+                      '${controller.currentQuestionIndex + 1}/$total',
                     ),
                   ),
                   if (controller.isCurrentAnswered)
-                    const Chip(
-                      avatar: Icon(
+                    Chip(
+                      avatar: const Icon(
                         Icons.check_circle_rounded,
                         size: AppIconSize.sm,
                       ),
-                      label: Text('已作答'),
+                      label: Text(strings.answeredChip),
                     ),
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
-              // —— 题目文本 ——
               Text(
                 q.title,
                 key: const Key('question-title'),
@@ -314,7 +323,6 @@ class _QuestionCard extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Text(q.hint, style: theme.bodyLargeMuted),
               const SizedBox(height: AppSpacing.xl),
-              // —— 按题型分发 ——
               switch (q) {
                 ChoiceQuestion question => _ChoiceBody(
                   question: question,
@@ -335,7 +343,6 @@ class _QuestionCard extends StatelessWidget {
               const SizedBox(height: AppSpacing.xl),
               const Divider(),
               const SizedBox(height: AppSpacing.md),
-              // —— 翻页按钮 ——
               Wrap(
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
@@ -345,21 +352,23 @@ class _QuestionCard extends StatelessWidget {
                         ? null
                         : onPrevious,
                     icon: const Icon(Icons.arrow_back_rounded),
-                    label: const Text('上一题'),
+                    label: Text(strings.prevButton),
                   ),
                   FilledButton.icon(
                     key: const Key('next-button'),
                     onPressed: controller.isCurrentAnswered ? onNext : null,
                     icon: Icon(
-                      controller.currentQuestionIndex == questions.length - 1 &&
+                      controller.currentQuestionIndex == total - 1 &&
                               controller.allAnswered
                           ? Icons.auto_awesome_rounded
                           : Icons.arrow_forward_rounded,
                     ),
                     label: Text(
-                      controller.currentQuestionIndex == questions.length - 1
-                          ? (controller.allAnswered ? '查看评分' : '检查未答题')
-                          : '下一题',
+                      controller.currentQuestionIndex == total - 1
+                          ? (controller.allAnswered
+                                ? strings.finishToResultButton
+                                : strings.checkUnansweredButton)
+                          : strings.nextButton,
                     ),
                   ),
                 ],
@@ -522,11 +531,11 @@ class _RatingBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final strings = AppStrings.of(context);
     final selected = answer?.stars;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 每个按钮最小 56px 宽度 + spacing 12px
         final compact = constraints.maxWidth < 420;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -556,8 +565,12 @@ class _RatingBody extends StatelessWidget {
               duration: AppDurations.fast,
               child: Text(
                 selected == null
-                    ? '请选择一个评级'
-                    : '已选：${question.labels[selected - 1]}（$selected / ${question.maxRating}）',
+                    ? strings.ratingSelectHint
+                    : strings.ratingSelectedPrefix(
+                        question.labels[selected - 1],
+                        selected,
+                        question.maxRating,
+                      ),
                 key: ValueKey(selected),
                 style: theme.bodyMediumMuted,
               ),
@@ -640,7 +653,7 @@ class _RatingButton extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  数字题 body（月薪输入）
+//  数字题 body（月薪 + 工时 / 通勤等）
 // ════════════════════════════════════════════════════════════════════════════
 
 class _NumericBody extends StatefulWidget {
@@ -674,7 +687,6 @@ class _NumericBodyState extends State<_NumericBody> {
   @override
   void didUpdateWidget(covariant _NumericBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 当 controller 外部重置（例如点击"重新测试"）时，更新输入框
     final external = widget.answer?.value;
     if (external != null && external != _parseCurrent()) {
       _controller.text = _formatNumber(external);
@@ -693,10 +705,6 @@ class _NumericBodyState extends State<_NumericBody> {
     return double.tryParse(raw);
   }
 
-  /// 统一数字格式化：
-  /// - 薪资题（整数）：千分位展示，如 `10,000`
-  /// - 允许小数的普通数字题：非整数保留 1 位小数，如 `8.5`；整数不带小数点
-  /// - 只允许整数的普通数字题：直接展示整数
   String _formatNumber(double v) {
     if (_isSalary) {
       final iv = v.round();
@@ -714,12 +722,18 @@ class _NumericBodyState extends State<_NumericBody> {
     return v.round().toString();
   }
 
-  /// 快捷芯片 label：薪资用"1 万 / 8k"；其他用"8 小时 / 30 分钟"这种带单位格式
-  String _formatQuickPick(double v) {
+  String _formatQuickPick(double v, AppStrings strings) {
     if (_isSalary) {
-      return v >= 10000
-          ? '${(v / 10000).toStringAsFixed(v % 10000 == 0 ? 0 : 1)} 万'
-          : '${(v / 1000).toStringAsFixed(0)}k';
+      // 金额芯片：中/日用"万"、英文用 k
+      if (strings.locale.locale.languageCode == 'en') {
+        return '${(v / 1000).toStringAsFixed(v % 1000 == 0 ? 0 : 1)}k';
+      }
+      if (v >= 10000) {
+        return strings.locale.locale.languageCode == 'ja'
+            ? '${(v / 10000).toStringAsFixed(v % 10000 == 0 ? 0 : 1)}万'
+            : '${(v / 10000).toStringAsFixed(v % 10000 == 0 ? 0 : 1)} 万';
+      }
+      return '${(v / 1000).toStringAsFixed(0)}k';
     }
     return '${_formatNumber(v)} ${widget.question.unit}';
   }
@@ -728,13 +742,13 @@ class _NumericBodyState extends State<_NumericBody> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
     final q = widget.question;
     final current = _parseCurrent() ?? q.defaultValue;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // —— 输入框 ——
         TextField(
           controller: _controller,
           keyboardType: TextInputType.numberWithOptions(decimal: _allowDecimal),
@@ -759,7 +773,7 @@ class _NumericBodyState extends State<_NumericBody> {
                       right: AppSpacing.xs,
                     ),
                     child: Text(
-                      '¥',
+                      strings.currencySymbol,
                       style: theme.textTheme.headlineMedium?.copyWith(
                         color: scheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
@@ -802,9 +816,10 @@ class _NumericBodyState extends State<_NumericBody> {
           },
         ),
         const SizedBox(height: AppSpacing.md),
-        // —— 快速选择 ——
         Text(
-          _isSalary ? '快捷金额' : '常见值',
+          _isSalary
+              ? strings.numericQuickPickSalary
+              : strings.numericQuickPickOther,
           style: theme.textTheme.labelLarge?.copyWith(
             color: scheme.onSurfaceVariant,
             fontWeight: FontWeight.w600,
@@ -817,7 +832,7 @@ class _NumericBodyState extends State<_NumericBody> {
           children: [
             for (final v in q.quickPicks)
               ActionChip(
-                label: Text(_formatQuickPick(v)),
+                label: Text(_formatQuickPick(v, strings)),
                 onPressed: () {
                   _controller.text = _formatNumber(v);
                   _controller.selection = TextSelection.fromPosition(
@@ -829,24 +844,33 @@ class _NumericBodyState extends State<_NumericBody> {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        // —— 实时反馈（薪资题显示系数；其他数字题显示当前得分）——
-        _FeedbackCard(question: q, currentValue: current),
+        _FeedbackCard(
+          question: q,
+          currentValue: current,
+          formatNumber: _formatNumber,
+        ),
       ],
     );
   }
 }
 
-/// 数字题下方的实时反馈卡：薪资题显示系数；其他数字题显示"当前得分 N/10"。
+/// 数字题下方的实时反馈卡。
 class _FeedbackCard extends StatelessWidget {
-  const _FeedbackCard({required this.question, required this.currentValue});
+  const _FeedbackCard({
+    required this.question,
+    required this.currentValue,
+    required this.formatNumber,
+  });
 
   final NumericQuestion question;
   final double currentValue;
+  final String Function(double) formatNumber;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
     final isSalary = question.isSalaryMultiplier;
 
     String title;
@@ -856,18 +880,30 @@ class _FeedbackCard extends StatelessWidget {
     if (isSalary) {
       final coefficient = salaryCoefficientOf(currentValue, question.baseline);
       final atCap = coefficient >= salaryCoefficientMax;
-      title = '薪资系数 ×${coefficient.toStringAsFixed(2)}';
-      subtitle = atCap
-          ? '已达到封顶系数 ×${salaryCoefficientMax.toStringAsFixed(1)}（薪资越高不再继续加成）'
-          : '基准值 ${question.baseline.round()} 元 / 月 = ×1.00';
+      title = strings.numericFeedbackSalaryTitle(coefficient);
+      if (atCap) {
+        subtitle = strings.numericFeedbackSalaryAtCap(salaryCoefficientMax);
+      } else {
+        final baselineStr =
+            '${strings.currencySymbol}${formatNumber(question.baseline)}';
+        subtitle = strings.numericFeedbackSalaryBaseline(baselineStr);
+      }
       icon = Icons.calculate_rounded;
     } else {
       final score = _linearScore(question, currentValue);
-      title = '当前得分 ${score.toStringAsFixed(1)} / 10';
+      title = strings.numericFeedbackOtherTitle(score);
       final higher = question.bestValue > question.worstValue;
       subtitle = higher
-          ? '越接近 ${_fmt(question.bestValue)} ${question.unit}得分越高；低于 ${_fmt(question.worstValue)} ${question.unit}得 0 分'
-          : '越接近 ${_fmt(question.bestValue)} ${question.unit}得分越高；高于 ${_fmt(question.worstValue)} ${question.unit}得 0 分';
+          ? strings.numericFeedbackHigherHint(
+              _fmt(question.bestValue),
+              question.unit,
+              _fmt(question.worstValue),
+            )
+          : strings.numericFeedbackLowerHint(
+              _fmt(question.bestValue),
+              question.unit,
+              _fmt(question.worstValue),
+            );
       icon = Icons.score_rounded;
     }
 
@@ -921,7 +957,7 @@ class _FeedbackCard extends StatelessWidget {
   }
 }
 
-/// 千分位格式化：用户输入时实时加/移逗号（仅用于薪资题）。
+/// 千分位格式化（仅用于薪资题）。
 class _ThousandsFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -934,7 +970,6 @@ class _ThousandsFormatter extends TextInputFormatter {
     }
     final n = int.tryParse(raw);
     if (n == null) return oldValue;
-
     final formatted = _group(raw);
     return TextEditingValue(
       text: formatted,

@@ -9,7 +9,7 @@
 
 > **Workplace Overall Rating & Key Numeric Metric Benchmark** — 一个定量的工作评分计算器
 
-用 13 个维度量化你当前工作的性价比，通过 `基础分 × 薪资系数` 给出 0–100 的综合评分和 S/A/B/C/D 等级。
+用 13 个维度量化你当前工作的性价比，通过 `基础分 × 薪资系数` 给出 0–100 的综合评分和 S/A/B/C/D 等级。**支持简体中文 / 日本語 / English 三种语言**，每种 locale 的评分锚点和薪资基准都按当地劳动力市场校准。
 
 **在线体验**：<https://worknmb.eggfine.com>（Cloudflare Pages，每次 push main 自动更新）
 
@@ -92,6 +92,29 @@
 
 ## UI 特性
 
+### 国际化（i18n）
+
+支持 **3 种语言**：简体中文 / 日本語 / English。进入"设置"页可随时切换，也支持"跟随系统"。
+
+切语言时所有 UI 文字、题目、选项、评分描述、建议文案一起切换，**已作答的题目不会丢失**（题目 ID 在各 locale 间保持一致）。
+
+**每个 locale 的评分锚点独立校准**——不是机翻，而是根据当地劳动市场设置不同的"满分 / 0 分"阈值：
+
+| 维度 | 中国（zh）| 日本（ja）| 美国（en）|
+|---|---|---|---|
+| 月薪基准（1.0 系数）| ¥10,000 | ¥300,000 | $5,000 |
+| 工时 best / worst（小时）| 8 / 13 | 8 / 12 | 8 / 11 |
+| 通勤 best / worst（分钟）| 10 / 90 | 15 / 90 | 15 / 75 |
+| 加班天数 best / worst（天/周）| 0 / 5 | 0 / 4 | 0 / 4 |
+| 午休 best / worst（分钟）| 90 / 15 | 60 / 15 | 60 / 15 |
+| 远程 best / worst（天/周）| 3 / 0 | 3 / 0 | 4 / 0 |
+| 年终奖 best / worst（月）| 6 / 0 | 5 / 0 | 2 / 0 |
+| 年假 best / worst（天）| 20 / 5 | 20 / 5 | 25 / 10 |
+
+理由举例：
+- **日本**: 通勤 15 分钟才算理想（首都圈普遍 1h+）、年终奖 5 个月满分（夏冬賞惯例）、月薪基准 30 万日元（东京正社员中位数）
+- **美国**: 工时 11 小时就 0 分（salaried exempt 的现实底线）、远程 4 天满分（WFH 文化最成熟）、PTO 25 天满分（而 10 天视为底线）、奖金 2 个月已是强项（大多数美岗没有年终奖）
+
 ### 响应式
 
 | 视口宽度 | 布局 |
@@ -138,10 +161,16 @@
 lib/
 ├── main.dart                              入口
 ├── app/                                   与业务无关的壳
-│   ├── app_identity.dart                  品牌名常量
-│   ├── survey_app.dart                    MaterialApp 装配
+│   ├── app_identity.dart                  品牌名常量（含 repo URL / 预览 URL）
+│   ├── survey_app.dart                    MaterialApp 装配（theme + i18n）
+│   ├── i18n/                              国际化
+│   │   ├── app_locale.dart                AppLocale 枚举（zh / ja / en）
+│   │   ├── app_strings.dart               全 UI 文案容器 + InheritedWidget
+│   │   ├── strings_zh.dart                中文翻译实例
+│   │   ├── strings_ja.dart                日文翻译实例
+│   │   └── strings_en.dart                英文翻译实例
 │   ├── state/
-│   │   └── app_preferences.dart           主题 / 色板偏好（ChangeNotifier）
+│   │   └── app_preferences.dart           主题 / 色板 / 语言偏好（ChangeNotifier）
 │   ├── theme/
 │   │   ├── design_tokens.dart             视觉原语单一事实来源
 │   │   ├── text_styles.dart               ThemeData 扩展（bodyMediumMuted 等）
@@ -153,7 +182,11 @@ lib/
 │       └── responsive.dart                断点判断 helper
 └── features/survey/                       业务层
     ├── domain/
-    │   └── survey_data.dart               题库 + 评分规则 + 建议文案
+    │   ├── survey_data.dart               locale 无关的数据模型 + 评分公式
+    │   ├── localized_survey.dart          LocalizedSurvey 容器 + factory
+    │   ├── questions_zh.dart              中国题库（¥10k 基准，13 题本地化文案 + 锚点）
+    │   ├── questions_ja.dart              日本题库（¥300k 基准）
+    │   └── questions_en.dart              美国题库（$5k 基准）
     └── presentation/
         ├── controllers/
         │   └── survey_controller.dart     答题状态 + 评分计算

@@ -2,17 +2,17 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 
+import '../../domain/localized_survey.dart';
 import '../../domain/survey_data.dart';
 
 enum AppSection {
-  home('首页', Icons.home_outlined, Icons.home_rounded),
-  questionnaire('问卷', Icons.quiz_outlined, Icons.quiz_rounded),
-  result('结果', Icons.insights_outlined, Icons.insights_rounded),
-  settings('设置', Icons.settings_outlined, Icons.settings_rounded);
+  home(Icons.home_outlined, Icons.home_rounded),
+  questionnaire(Icons.quiz_outlined, Icons.quiz_rounded),
+  result(Icons.insights_outlined, Icons.insights_rounded),
+  settings(Icons.settings_outlined, Icons.settings_rounded);
 
-  const AppSection(this.label, this.icon, this.selectedIcon);
+  const AppSection(this.icon, this.selectedIcon);
 
-  final String label;
   final IconData icon;
   final IconData selectedIcon;
 }
@@ -32,16 +32,28 @@ class FactorScore {
   /// 0-10 的原始贡献分（对于 salary multiplier 题，此处填系数 × 10 用于展示）。
   final double rawScore;
 
-  /// 是否为薪资系数题（结果页对此类题展示方式不同）。
   final bool isSalaryMultiplier;
 }
 
+/// 带 locale 的 survey controller。
+///
+/// 切换 locale 时，外部 [SurveyApp] 应该构造一个新的 controller 实例或调用
+/// [updateSurvey] —— 因为 [answers] 的 key 是 question id（所有 locale 相同），
+/// 已填的答案可以直接保留。
 class SurveyController extends ChangeNotifier {
+  SurveyController({required LocalizedSurvey survey})
+    // ignore: prefer_initializing_formals — _survey needs to be mutable to support updateSurvey
+    : _survey = survey;
+
+  LocalizedSurvey _survey;
   final Map<String, Answer> _answers = <String, Answer>{};
 
   int _currentQuestionIndex = 0;
   int _questionTransitionToken = 0;
   AppSection _section = AppSection.home;
+
+  LocalizedSurvey get survey => _survey;
+  List<QuizQuestion> get questions => _survey.questions;
 
   Map<String, Answer> get answers => UnmodifiableMapView(_answers);
 
@@ -62,16 +74,25 @@ class SurveyController extends ChangeNotifier {
     return null;
   }
 
-  /// 当前题是否已作答。
   bool get isCurrentAnswered => _answers.containsKey(question.id);
 
   Answer? answerFor(String questionId) => _answers[questionId];
+
+  /// 切换 locale 时替换题库（answer 由 id 匹配，保留）。
+  void updateSurvey(LocalizedSurvey next) {
+    if (identical(_survey, next)) return;
+    _survey = next;
+    // 保证 currentQuestionIndex 仍然有效
+    if (_currentQuestionIndex >= next.questions.length) {
+      _currentQuestionIndex = 0;
+    }
+    notifyListeners();
+  }
 
   // ════════════════════════════════════════════════════════════════════════════
   //  评分计算
   // ════════════════════════════════════════════════════════════════════════════
 
-  /// 单题归一化得分（0-10）。未作答返回 null。
   double? rawScoreFor(QuizQuestion q) {
     final answer = _answers[q.id];
     if (answer == null) return null;
@@ -83,17 +104,13 @@ class SurveyController extends ChangeNotifier {
     };
   }
 
-  /// 数字题评分：
-  /// - 薪资系数题：按系数归一化到 0-10（仅用于展示，实际按 totalScore 乘法）。
-  /// - 普通数字题：基于 [NumericQuestion.bestValue] 与 [NumericQuestion.worstValue]
-  ///   做线性插值（支持"越高越好"与"越低越好"两种方向）。
   double _scoreForNumeric(NumericQuestion q, double v) {
     if (q.isSalaryMultiplier) {
       return salaryCoefficientOf(v, q.baseline) * (10 / salaryCoefficientMax);
     }
     final best = q.bestValue;
     final worst = q.worstValue;
-    if (best == worst) return 10; // degenerate — 视为满分
+    if (best == worst) return 10;
     final raw = ((v - worst) / (best - worst)) * 10;
     return raw.clamp(0.0, 10.0);
   }
@@ -113,33 +130,26 @@ class SurveyController extends ChangeNotifier {
     return (sum / count) * 10;
   }
 
-  /// 薪资系数（0.1 ~ 2.5）。未作答返回 1.0（不加成也不惩罚）。
+  /// 薪资系数（0.1 ~ 2.5）。未作答返回 1.0。
   double get salaryMultiplier {
-    final salaryQ = questions.whereType<NumericQuestion>().firstWhere(
-      (q) => q.isSalaryMultiplier,
-    );
+    final salaryQ = _survey.salaryQuestion;
     final answer = _answers[salaryQ.id];
     if (answer is! NumericAnswer) return 1;
     return salaryCoefficientOf(answer.value, salaryQ.baseline);
   }
 
-  /// 薪资输入（未作答返回 null）。
   double? get salaryValue {
-    final salaryQ = questions.whereType<NumericQuestion>().firstWhere(
-      (q) => q.isSalaryMultiplier,
-    );
+    final salaryQ = _survey.salaryQuestion;
     final answer = _answers[salaryQ.id];
     return answer is NumericAnswer ? answer.value : null;
   }
 
-  /// 最终得分：基础分 × 薪资系数，截取到 0-100。
   double get totalScore {
     return (baseScore * salaryMultiplier).clamp(0, 100);
   }
 
   ScoreGrade get grade => ScoreGrade.fromScore(totalScore);
 
-  /// 所有因子的贡献（用于结果页面的 breakdown）。
   List<FactorScore> get factorBreakdown {
     return [
       for (final q in questions)
@@ -152,7 +162,6 @@ class SurveyController extends ChangeNotifier {
     ];
   }
 
-  /// 得分最低的前 N 个因子（用于生成改进建议）。
   List<FactorScore> weakestFactors({int limit = 3}) {
     final breakdown =
         factorBreakdown.where((f) => !f.isSalaryMultiplier).toList()
@@ -161,26 +170,9 @@ class SurveyController extends ChangeNotifier {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  //  文案
-  // ════════════════════════════════════════════════════════════════════════════
-
-  String get sectionDescription {
-    return switch (_section) {
-      AppSection.home =>
-        'WORKNMB，即 Workplace Overall Rating & Key Numeric Metric Benchmark。'
-            '用 ${questions.length} 道题量化你当前工作的性价比。',
-      AppSection.questionnaire => '按题完成评测，可随时返回、跳转并修正答案。',
-      AppSection.result =>
-        allAnswered ? '结果页会展示综合评分、等级、各因子贡献与薄弱项建议。' : '你还差几题没有完成，继续答题后即可查看完整分析。',
-      AppSection.settings => '调整主题模式和色板，或清除现有答案从头开始。',
-    };
-  }
-
-  // ════════════════════════════════════════════════════════════════════════════
   //  答题动作
   // ════════════════════════════════════════════════════════════════════════════
 
-  /// 设置单选答案。
   void choose(int optionIndex) {
     final q = question;
     if (q is! ChoiceQuestion) return;
@@ -190,7 +182,6 @@ class SurveyController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 设置评分题答案（1 ~ maxRating）。
   void rate(int stars) {
     final q = question;
     if (q is! RatingQuestion) return;
@@ -200,7 +191,6 @@ class SurveyController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 设置数字题答案（月薪等）。
   void setNumeric(double value) {
     final q = question;
     if (q is! NumericQuestion) return;
