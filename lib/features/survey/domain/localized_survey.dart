@@ -10,17 +10,25 @@ class LocalizedSurvey {
     required this.questions,
     required this.improvementTips,
     required this.gradeDescriptions,
+    required this.gradeMemeTitles,
+    required this.gradeMemePunchlines,
   });
 
-  /// 题目列表（固定 13 道）。所有 locale 的题目 `id` 必须一致，
-  /// 以保证切语言时用户已填的答案能继续匹配。
+  /// 题目列表。大多数 locale 是 13 道，中国版多一道"五险一金"共 14 道。
+  /// 各 locale 之间共享的题目 `id` 必须一致，以保证切语言时用户已填的答案能继续匹配。
   final List<QuizQuestion> questions;
 
   /// 薄弱项建议（key = 题目 id）。
   final Map<String, String> improvementTips;
 
-  /// 等级（S/A/B/C/D）的一句话描述。
+  /// 等级（S/A/B/C/D）的一句话严肃描述。
   final Map<String, String> gradeDescriptions;
+
+  /// 等级的本土化梗称号（S/A/B/C/D），比如 CN 的"霸道总裁"、JA 的"勝ち組エース"、EN 的 "Corporate Overlord"。
+  final Map<String, String> gradeMemeTitles;
+
+  /// 梗称号下方的一句话调侃 punchline（S/A/B/C/D）。
+  final Map<String, String> gradeMemePunchlines;
 
   /// 工具：查找薪资系数题。
   NumericQuestion get salaryQuestion {

@@ -98,6 +98,8 @@ Three locales are bundled: **简体中文 / 日本語 / English**. Switch anytim
 
 Switching a locale re-translates every UI string, question, option, rating label, grade description and improvement tip. **Already-given answers are preserved** — question IDs are shared across locales, so the value you entered for `workHours` in Chinese still scores the same after you switch to English.
 
+**The CN locale has one extra question unique to China — "五险一金" (social insurance + housing fund)**, making the Chinese bank **14 questions** vs 13 for Japanese / English. Switching away from CN hides that question (its answer stays in memory and comes back when you switch back to CN).
+
 **Each locale has its own scoring anchors** — not mechanical translations, but calibrated to the local labor market:
 
 | Dimension | China (zh) | Japan (ja) | USA (en) |
@@ -110,10 +112,26 @@ Switching a locale re-translates every UI string, question, option, rating label
 | WFH best / worst (day/wk) | 3 / 0 | 3 / 0 | 4 / 0 |
 | Annual bonus best / worst (mo) | 6 / 0 | 5 / 0 | 2 / 0 |
 | PTO best / worst (days) | 20 / 5 | 20 / 5 | 25 / 10 |
+| **Social insurance (CN only)** | 5-option scale | — | — |
 
 Examples of why:
+- **China**: The 五险一金 question distinguishes "paid on actual salary base" / "paid at minimum base" / "only 5 insurances, no housing fund" / "only 3 insurances" / "none". It has no clean equivalent in Japan or the US, so it is a CN-only question.
 - **Japan**: A 15-minute commute is already exceptional (Tokyo average is 1h+); 5-month bonus is strong (summer + winter 賞与 tradition); baseline 300,000 JPY reflects Tokyo regular-employee median.
 - **USA**: 11h is the realistic floor for burnout in salaried-exempt roles; 4-day WFH is the ceiling of hybrid culture; 25 days PTO is the aspirational target and 10 days is the implicit floor; 2-month bonuses are already strong (most US jobs have little or no annual bonus).
+
+### Result page: meme titles + grade gradients
+
+Based on your total score (S/A/B/C/D), the result summary card switches its **background gradient** and shows a **locale-native meme title**:
+
+| Grade | Gradient | 🇨🇳 Title | 🇯🇵 Title | 🇺🇸 Title |
+|---|---|---|---|---|
+| **S** (≥85) | Gold → bronze | 霸道总裁 | 勝ち組エース | Corporate Overlord |
+| **A** (70-84) | Emerald → forest | 打工界翘楚 | デキるサラリーマン | LinkedIn Top Voice |
+| **B** (55-69) | Amber → caramel | 标准牛马 | 普通の会社員 | Cubicle Veteran |
+| **C** (40-54) | Brick red → dark | 福报践行者 | 疲弊サラリーマン | TGIF Survivor |
+| **D** (<40) | Maroon → black | 天选打工人 | 社畜最終形態 | Send Help Already |
+
+Each title comes with a playful one-liner punchline, e.g. S (EN): *"You ARE the meeting that could have been an email."*
 
 ### Responsive layout
 

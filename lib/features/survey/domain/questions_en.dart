@@ -243,4 +243,19 @@ final surveyEn = LocalizedSurvey(
     'C': 'Below par',
     'D': 'Seriously consider leaving',
   },
+  // Meme titles — Reddit / LinkedIn / r/antiwork energy
+  gradeMemeTitles: const <String, String>{
+    'S': 'Corporate Overlord',
+    'A': 'LinkedIn Top Voice',
+    'B': 'Cubicle Veteran',
+    'C': 'TGIF Survivor',
+    'D': 'Send Help Already',
+  },
+  gradeMemePunchlines: const <String, String>{
+    'S': 'You ARE the meeting that could have been an email.',
+    'A': 'Your #grindset is approved. Humblebrag responsibly.',
+    'B': 'The system works, kinda. You have made peace with cubicle life.',
+    'C': 'Weekdays are survival mode. The espresso machine knows your name.',
+    'D': 'r/antiwork is drafting an offer letter. Open the resume.',
+  },
 );

@@ -152,6 +152,12 @@ class _UnlockedResult extends StatelessWidget {
 //  卡片 1：总分 + 等级徽章
 // ════════════════════════════════════════════════════════════════════════════
 
+/// 结果摘要卡：根据 grade 动态切换渐变背景色，叠加等级梗称号。
+///
+/// - 背景：`GradeBackgroundTokens.gradientFor(grade)` 提供 2 色 LinearGradient
+///   （D 褐红→黑，C 砖红→深红，B 橙→棕，A 翠绿→墨绿，S 金→古铜）。
+/// - 徽章：白底圆角 + 等级色数字字母，保证在任意渐变上都清晰。
+/// - 主信息顺序：标题 → 大数值 + 徽章 → 梗称号 → punchline → 公式面板。
 class _ScoreSummaryCard extends StatelessWidget {
   const _ScoreSummaryCard({required this.controller});
 
@@ -160,24 +166,50 @@ class _ScoreSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final strings = AppStrings.of(context);
     final score = controller.totalScore;
     final grade = controller.grade;
-    final gradeColor = GradeColorTokens.colorFor(scheme, grade);
+    final gradientColors = GradeBackgroundTokens.gradientFor(grade);
+    final badgeColor = gradientColors.first;
     final salaryValue = controller.salaryValue ?? 0;
     final coefficient = controller.salaryMultiplier;
+
     final gradeDesc =
         controller.survey.gradeDescriptions[grade.label] ?? grade.label;
+    final memeTitle =
+        controller.survey.gradeMemeTitles[grade.label] ?? grade.label;
+    final memePunch = controller.survey.gradeMemePunchlines[grade.label] ?? '';
 
-    return AppCard(
-      variant: AppCardVariant.featured,
-      fillColor: scheme.primaryContainer,
-      featuredAccentColor: gradeColor.withValues(alpha: 0.24),
+    const onGradient = GradeBackgroundTokens.onGradient;
+    final onGradientMuted = GradeBackgroundTokens.onGradientMuted;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: gradientColors,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.last.withValues(alpha: 0.45),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(strings.resultSummaryTitle, style: theme.textTheme.titleMedium),
+          Text(
+            strings.resultSummaryTitle,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: onGradientMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -189,7 +221,7 @@ class _ScoreSummaryCard extends StatelessWidget {
                   key: ValueKey(score.round()),
                   style: theme.textTheme.displayLarge?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: scheme.onPrimaryContainer,
+                    color: onGradient,
                     height: 1,
                   ),
                 ),
@@ -200,25 +232,53 @@ class _ScoreSummaryCard extends StatelessWidget {
                 child: Text(
                   ' / 100',
                   style: theme.textTheme.headlineSmall?.copyWith(
-                    color: scheme.onPrimaryContainer.withValues(alpha: 0.7),
+                    color: onGradientMuted,
                   ),
                 ),
               ),
               const Spacer(),
-              _GradeBadge(grade: grade, color: gradeColor),
+              _GradeBadge(grade: grade, gradeColor: badgeColor),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.md),
+          // —— 梗称号：大字号，带引号装饰 ——
+          AnimatedSwitcher(
+            duration: AppDurations.fast,
+            child: Text(
+              '「$memeTitle」',
+              key: ValueKey('meme-title-$memeTitle'),
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: onGradient,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xxs),
           Text(
             gradeDesc,
-            style: theme.bodyOnContainer(scheme.onPrimaryContainer),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: onGradientMuted,
+              fontWeight: FontWeight.w600,
+            ),
           ),
+          if (memePunch.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              memePunch,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: onGradient,
+                height: 1.5,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.xl),
+          // —— 公式面板（半透明黑色底，保证即使在金色渐变上也可读）——
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: scheme.surface.withValues(alpha: 0.5),
+              color: GradeBackgroundTokens.innerPanel,
               borderRadius: BorderRadius.circular(AppRadius.card),
             ),
             child: Column(
@@ -227,7 +287,7 @@ class _ScoreSummaryCard extends StatelessWidget {
                 Text(
                   strings.resultFormulaLabel,
                   style: theme.textTheme.labelLarge?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                    color: onGradientMuted,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -239,7 +299,7 @@ class _ScoreSummaryCard extends StatelessWidget {
                     score.toStringAsFixed(1),
                   ),
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurface,
+                    color: onGradient,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -251,7 +311,7 @@ class _ScoreSummaryCard extends StatelessWidget {
                     strings.currencySymbol,
                   ),
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                    color: onGradientMuted,
                   ),
                 ),
               ],
@@ -274,11 +334,12 @@ class _ScoreSummaryCard extends StatelessWidget {
   }
 }
 
+/// 等级徽章：白底圆角 + 等级色字母，任意渐变背景上都清晰。
 class _GradeBadge extends StatelessWidget {
-  const _GradeBadge({required this.grade, required this.color});
+  const _GradeBadge({required this.grade, required this.gradeColor});
 
   final ScoreGrade grade;
-  final Color color;
+  final Color gradeColor;
 
   @override
   Widget build(BuildContext context) {
@@ -288,13 +349,13 @@ class _GradeBadge extends StatelessWidget {
       width: 80,
       height: 80,
       decoration: BoxDecoration(
-        color: color,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(AppRadius.hero),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.35),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -302,7 +363,7 @@ class _GradeBadge extends StatelessWidget {
       child: Text(
         grade.label,
         style: theme.textTheme.displayMedium?.copyWith(
-          color: Colors.white,
+          color: gradeColor,
           fontWeight: FontWeight.w900,
           letterSpacing: 0,
         ),

@@ -93,6 +93,20 @@ final surveyZh = LocalizedSurvey(
       bestValue: 90,
       worstValue: 15,
     ),
+    // —— 中国特色题：五险一金（仅 CN locale）——
+    ChoiceQuestion(
+      id: 'socialInsurance',
+      category: '五险一金',
+      title: '五险一金缴纳情况？',
+      hint: '养老 / 医疗 / 失业 / 工伤 / 生育 + 住房公积金。',
+      options: [
+        QuizOption('五险一金，按实际工资足额缴纳', '合法合规的标配。', 10),
+        QuizOption('五险一金，但按最低基数缴', '"假装缴纳"，退休金和公积金贷款都受影响。', 5),
+        QuizOption('只有五险，无公积金', '省了公积金 = 少了一大笔隐形工资。', 3),
+        QuizOption('只有三险或不全', '违反《社保法》，多见于小公司。', 1),
+        QuizOption('没有 / 以劳务费现金发放', '毫无社保保障，随时可被解雇。', 0),
+      ],
+    ),
     NumericQuestion(
       id: 'wfhDays',
       category: '远程办公',
@@ -178,6 +192,9 @@ final surveyZh = LocalizedSurvey(
     'overtimePay': '无补偿加班违反《劳动法》，保留证据以备维权或谈判。',
     'restDays': '每周少于一天休息严重违规，是硬性跳槽信号。',
     'lunchBreak': '吃饭都赶时间的公司，健康和专注度都在被透支。',
+    'socialInsurance':
+        '按最低基数缴纳是隐性克扣工资，长期看影响退休金、买房资格和医疗保障。'
+        '遇到三险/无社保可向当地社保局投诉。',
     'wfhDays': '强制坐班会让通勤成本和体力消耗放大；争取至少每周 1-2 天远程。',
     'annualBonus': '年终奖少说明薪酬结构保守或公司业绩弱，谈薪时用月薪涨幅弥补。',
     'annualLeave': '年假没法真正休完，和"有年假"没区别；把它算进隐性加班。',
@@ -192,5 +209,20 @@ final surveyZh = LocalizedSurvey(
     'B': '还行',
     'C': '勉强',
     'D': '建议考虑跳槽',
+  },
+  // 梗称号 —— 中国打工人自嘲风，带微博/小红书味
+  gradeMemeTitles: const <String, String>{
+    'S': '霸道总裁',
+    'A': '打工界翘楚',
+    'B': '标准牛马',
+    'C': '福报践行者',
+    'D': '天选打工人',
+  },
+  gradeMemePunchlines: const <String, String>{
+    'S': '走路带风、喝水都带 KPI，下属见你要鞠躬。',
+    'A': '朋友圈正能量担当，老板开会点名表扬那种。',
+    'B': '是韭菜，但好歹是营养均衡的那种。',
+    'C': '该睡睡该肝肝，已经学会和工作和解（被迫的）。',
+    'D': '建议今晚就投简历，或者连夜润。',
   },
 );

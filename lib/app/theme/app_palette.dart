@@ -42,3 +42,37 @@ abstract final class GradeColorTokens {
     };
   }
 }
+
+/// 结果卡片的渐变背景色。
+///
+/// 色彩语义（从最差到最好）：
+/// - D 褐红 → 黑（像烧焦的余烬，暗示职业被透支）
+/// - C 砖红 → 深红（警示）
+/// - B 橙 → 焦糖棕（中性偏暖）
+/// - A 翠绿 → 墨绿（健康）
+/// - S 金 → 古铜（奖杯般的奢华感）
+///
+/// 所有颜色都选择了能配合白色文字的深度，不需要额外的文字对比处理。
+abstract final class GradeBackgroundTokens {
+  /// 返回 2 色的 LinearGradient 颜色列表（topLeft → bottomRight）。
+  static List<Color> gradientFor(ScoreGrade grade) {
+    return switch (grade) {
+      ScoreGrade.s => const [Color(0xFFC9A227), Color(0xFF3B2900)], // 金 → 古铜
+      ScoreGrade.a => const [Color(0xFF2E9558), Color(0xFF0F4F2C)], // 翠绿 → 墨绿
+      ScoreGrade.b => const [Color(0xFFD97706), Color(0xFF7C2D12)], // 琥珀 → 焦糖棕
+      ScoreGrade.c => const [Color(0xFFB42318), Color(0xFF5C0E0E)], // 砖红 → 深红
+      ScoreGrade.d => const [Color(0xFF450A0A), Color(0xFF0F0303)], // 褐红 → 黑
+    };
+  }
+
+  /// 渐变卡上文字的颜色（恒定白色，所有渐变都为深色确保对比度）。
+  static const Color onGradient = Color(0xFFFFFFFF);
+
+  /// 渐变卡上次要文字的颜色（白色 85% 透明）。
+  static Color onGradientMuted = const Color(
+    0xFFFFFFFF,
+  ).withValues(alpha: 0.78);
+
+  /// 渐变卡上内嵌次级容器（公式说明）的背景色。
+  static Color innerPanel = const Color(0xFF000000).withValues(alpha: 0.24);
+}

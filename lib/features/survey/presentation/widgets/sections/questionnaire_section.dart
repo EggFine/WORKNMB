@@ -682,6 +682,14 @@ class _NumericBodyState extends State<_NumericBody> {
     super.initState();
     final initial = widget.answer?.value ?? widget.question.defaultValue;
     _controller = TextEditingController(text: _formatNumber(initial));
+
+    // 默认值也要登记为答案，让"下一题"立即可用。
+    // 用户若不认同默认值，直接编辑或点快捷芯片覆盖即可。
+    if (widget.answer == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onChanged(initial);
+      });
+    }
   }
 
   @override
