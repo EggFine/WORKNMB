@@ -1,39 +1,105 @@
 name: Build and Release
 
 # 触发方式：
-#   1. 推送形如 v1.2.3 的标签时自动构建并发布
-#   2. 手动在 Actions 页面点击 Run workflow，输入版本号
+#   1. push 到 main → 自动递增 patch（v1.0.0 → v1.0.1 → v1.0.2 ...）
+#      如果 commit message 带 [skip release] 则跳过本次发版
+#   2. push tag v* → 使用该 tag 作为版本号（手动控制大版本跳跃）
+#   3. Actions 页面手动 Run workflow → 可输入自定义版本号，或留空自动递增
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release tag (形如 v1.0.0；不存在的标签会自动在当前 commit 上创建)'
-        required: true
-        default: 'v0.0.0-manual'
+        description: 'Explicit version tag (e.g. v2.0.0). Leave empty to auto-bump patch.'
+        required: false
+        default: ''
 
-# 创建 Release 和上传资产必须有 contents:write
+# 同一时刻只允许一个发版流水线在跑，避免快速连续 push 产生 tag 冲突
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# 创建 Release、push tag 需要 contents:write
 permissions:
   contents: write
 
 env:
-  # pubspec.yaml 里的 sdk 约束是 ^3.12.0-210.2.beta，暂时用 beta 通道满足
-  # Dart 3.12 进入 stable 后可以改成 'stable'
+  # pubspec.yaml 的 sdk 约束是 ^3.12.0-210.2.beta，用 beta 通道满足
   FLUTTER_CHANNEL: beta
-  # 统一的版本号来源：tag push 时取 ref_name，手动触发时取 inputs.version
-  VERSION: ${{ github.event.inputs.version || github.ref_name }}
 
 jobs:
   # ═════════════════════════════════════════════════════════════════════════
-  # 0. 预检：静态分析 + 测试必须通过，不然全部构建都跳过
+  # 0. 预检 + 版本决策：
+  #    - 若 commit 带 [skip release]，整个 workflow 跳过
+  #    - 若触发方式是 tag push：直接用那个 tag
+  #    - 若是 branch push / workflow_dispatch 且 version 为空：读最新 tag + 递增 patch
+  #    - 若是 workflow_dispatch 且填了 version：用那个
   # ═════════════════════════════════════════════════════════════════════════
-  test:
-    name: Analyze & Test
+  prepare:
+    name: Prepare version & run tests
+    if: "!contains(github.event.head_commit.message, '[skip release]')"
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 需要拉取所有 tag 才能 git describe
+
+      - name: Compute version
+        id: compute
+        shell: bash
+        run: |
+          INPUT_VERSION="${{ github.event.inputs.version }}"
+          REF="${GITHUB_REF}"
+
+          if [[ "$REF" == refs/tags/* ]]; then
+            # 触发方式是 tag push
+            VERSION="${REF#refs/tags/}"
+            echo "Triggered by tag push: using $VERSION"
+          elif [ -n "$INPUT_VERSION" ]; then
+            # 手动 dispatch 填了版本号
+            VERSION="$INPUT_VERSION"
+            echo "Manual dispatch with explicit version: $VERSION"
+          else
+            # branch push 或未填的 dispatch → 自动递增 patch
+            LATEST=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+            if [ -z "$LATEST" ]; then
+              LATEST="v0.0.0"
+              echo "No existing tags found, starting from $LATEST"
+            else
+              echo "Latest tag: $LATEST"
+            fi
+            STRIPPED="${LATEST#v}"
+            IFS='.' read -ra PARTS <<< "$STRIPPED"
+            MAJOR="${PARTS[0]:-0}"
+            MINOR="${PARTS[1]:-0}"
+            PATCH="${PARTS[2]:-0}"
+            NEW_PATCH=$((PATCH + 1))
+            VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+            echo "Auto-bumped patch: $VERSION"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Final VERSION=$VERSION"
+
+      - name: Create and push tag (if auto-bumped)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        shell: bash
+        run: |
+          VERSION="${{ steps.compute.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, reusing."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          echo "Created and pushed tag $VERSION"
+
       - uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
@@ -43,12 +109,14 @@ jobs:
       - run: flutter test
 
   # ═════════════════════════════════════════════════════════════════════════
-  # 1. Android — APK（直接安装）+ AAB（上架 Play Store 用）
+  # 1. Android
   # ═════════════════════════════════════════════════════════════════════════
   build-android:
     name: Android (APK + AAB)
-    needs: test
+    needs: prepare
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -77,12 +145,14 @@ jobs:
           if-no-files-found: error
 
   # ═════════════════════════════════════════════════════════════════════════
-  # 2. Windows — zip 便携版（解压后运行 worknmb.exe）
+  # 2. Windows
   # ═════════════════════════════════════════════════════════════════════════
   build-windows:
     name: Windows x64
-    needs: test
+    needs: prepare
     runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -103,12 +173,14 @@ jobs:
           if-no-files-found: error
 
   # ═════════════════════════════════════════════════════════════════════════
-  # 3. macOS — DMG 镜像
+  # 3. macOS
   # ═════════════════════════════════════════════════════════════════════════
   build-macos:
     name: macOS (DMG)
-    needs: test
+    needs: prepare
     runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -133,12 +205,14 @@ jobs:
           if-no-files-found: error
 
   # ═════════════════════════════════════════════════════════════════════════
-  # 4. Linux — tar.gz 便携版
+  # 4. Linux
   # ═════════════════════════════════════════════════════════════════════════
   build-linux:
     name: Linux x64
-    needs: test
+    needs: prepare
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - name: Install system dependencies
@@ -164,12 +238,14 @@ jobs:
           if-no-files-found: error
 
   # ═════════════════════════════════════════════════════════════════════════
-  # 5. Web — 静态站点 zip（解压到任何静态 HTTP 即可）
+  # 5. Web
   # ═════════════════════════════════════════════════════════════════════════
   build-web:
     name: Web (static)
-    needs: test
+    needs: prepare
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -189,18 +265,14 @@ jobs:
           if-no-files-found: error
 
   # ═════════════════════════════════════════════════════════════════════════
-  # 6. iOS — 未签名 IPA（仅供 AltStore / Xcode 侧载；无法 App Store 分发）
+  # 6. iOS（未签名）
   # ═════════════════════════════════════════════════════════════════════════
-  #
-  # 要分发到 App Store 或通过 TestFlight：
-  # - 把 APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 / PROVISIONING_PROFILE_BASE64
-  #   等 secret 配置到仓库
-  # - 换用 --export-options-plist 做完整签名
-  # - 参考 https://docs.flutter.dev/deployment/ios
   build-ios:
     name: iOS (unsigned)
-    needs: test
+    needs: prepare
     runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -228,6 +300,7 @@ jobs:
   release:
     name: Create GitHub Release
     needs:
+      - prepare
       - build-android
       - build-windows
       - build-macos
@@ -235,6 +308,8 @@ jobs:
       - build-web
       - build-ios
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - name: Download all platform artifacts
         uses: actions/download-artifact@v4
@@ -278,4 +353,4 @@ jobs:
             - **Android APK** 默认使用 debug keystore 签名，正式上架商店需配置 signing config。
             - **macOS DMG** 未经 Apple 公证，首次打开会提示"无法验证开发者"，右键 → 打开 即可。
             - **iOS IPA** 未签名，无法直接安装到普通 iPhone，需 AltStore 等工具侧载或自行签名。
-            - 所有桌面 / 移动安装包都是 release 模式编译，Web 为优化后的静态站点。
+            - 如需跳过某次 push 的发版，在 commit message 里加 `[skip release]` 标记。
