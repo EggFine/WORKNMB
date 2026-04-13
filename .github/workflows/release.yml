@@ -1,0 +1,281 @@
+name: Build and Release
+
+# 触发方式：
+#   1. 推送形如 v1.2.3 的标签时自动构建并发布
+#   2. 手动在 Actions 页面点击 Run workflow，输入版本号
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag (形如 v1.0.0；不存在的标签会自动在当前 commit 上创建)'
+        required: true
+        default: 'v0.0.0-manual'
+
+# 创建 Release 和上传资产必须有 contents:write
+permissions:
+  contents: write
+
+env:
+  # pubspec.yaml 里的 sdk 约束是 ^3.12.0-210.2.beta，暂时用 beta 通道满足
+  # Dart 3.12 进入 stable 后可以改成 'stable'
+  FLUTTER_CHANNEL: beta
+  # 统一的版本号来源：tag push 时取 ref_name，手动触发时取 inputs.version
+  VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+  # ═════════════════════════════════════════════════════════════════════════
+  # 0. 预检：静态分析 + 测试必须通过，不然全部构建都跳过
+  # ═════════════════════════════════════════════════════════════════════════
+  test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # 1. Android — APK（直接安装）+ AAB（上架 Play Store 用）
+  # ═════════════════════════════════════════════════════════════════════════
+  build-android:
+    name: Android (APK + AAB)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - run: flutter build appbundle --release
+      - name: Rename artifacts
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             "worknmb-${VERSION}-android.apk"
+          mv build/app/outputs/bundle/release/app-release.aab \
+             "worknmb-${VERSION}-android.aab"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: |
+            worknmb-*-android.apk
+            worknmb-*-android.aab
+          if-no-files-found: error
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # 2. Windows — zip 便携版（解压后运行 worknmb.exe）
+  # ═════════════════════════════════════════════════════════════════════════
+  build-windows:
+    name: Windows x64
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Package to zip
+        shell: pwsh
+        run: |
+          $zipName = "worknmb-$env:VERSION-windows-x64.zip"
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath $zipName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: worknmb-*-windows-x64.zip
+          if-no-files-found: error
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # 3. macOS — DMG 镜像
+  # ═════════════════════════════════════════════════════════════════════════
+  build-macos:
+    name: macOS (DMG)
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Package to DMG
+        run: |
+          cd build/macos/Build/Products/Release
+          APP_BUNDLE=$(ls -d *.app | head -1)
+          hdiutil create \
+            -volname "WORKNMB" \
+            -srcfolder "$APP_BUNDLE" \
+            -ov -format UDZO \
+            "$GITHUB_WORKSPACE/worknmb-${VERSION}-macos.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: worknmb-*-macos.dmg
+          if-no-files-found: error
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # 4. Linux — tar.gz 便携版
+  # ═════════════════════════════════════════════════════════════════════════
+  build-linux:
+    name: Linux x64
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build linux --release
+      - name: Package to tar.gz
+        run: |
+          cd build/linux/x64/release/bundle
+          tar -czf "$GITHUB_WORKSPACE/worknmb-${VERSION}-linux-x64.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: worknmb-*-linux-x64.tar.gz
+          if-no-files-found: error
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # 5. Web — 静态站点 zip（解压到任何静态 HTTP 即可）
+  # ═════════════════════════════════════════════════════════════════════════
+  build-web:
+    name: Web (static)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build web --release
+      - name: Package to zip
+        run: |
+          cd build/web
+          zip -r "$GITHUB_WORKSPACE/worknmb-${VERSION}-web.zip" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: worknmb-*-web.zip
+          if-no-files-found: error
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # 6. iOS — 未签名 IPA（仅供 AltStore / Xcode 侧载；无法 App Store 分发）
+  # ═════════════════════════════════════════════════════════════════════════
+  #
+  # 要分发到 App Store 或通过 TestFlight：
+  # - 把 APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 / PROVISIONING_PROFILE_BASE64
+  #   等 secret 配置到仓库
+  # - 换用 --export-options-plist 做完整签名
+  # - 参考 https://docs.flutter.dev/deployment/ios
+  build-ios:
+    name: iOS (unsigned)
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter pub get
+      - name: Build unsigned iOS
+        run: flutter build ios --release --no-codesign
+      - name: Wrap to IPA
+        run: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r "$GITHUB_WORKSPACE/worknmb-${VERSION}-ios-unsigned.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: worknmb-*-ios-unsigned.ipa
+          if-no-files-found: error
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # 7. 汇总 & 发布到 GitHub Release
+  # ═════════════════════════════════════════════════════════════════════════
+  release:
+    name: Create GitHub Release
+    needs:
+      - build-android
+      - build-windows
+      - build-macos
+      - build-linux
+      - build-web
+      - build-ios
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten into release/
+        run: |
+          mkdir -p release
+          find artifacts -type f \
+            \( -name '*.apk' -o -name '*.aab' \
+               -o -name '*.zip' -o -name '*.tar.gz' \
+               -o -name '*.dmg' -o -name '*.ipa' \) \
+            -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: WORKNMB ${{ env.VERSION }}
+          generate_release_notes: true
+          files: release/*
+          body: |
+            ## WORKNMB ${{ env.VERSION }}
+
+            ### 下载对应平台
+
+            | 平台 | 文件 | 说明 |
+            |------|------|------|
+            | Android | `worknmb-*-android.apk` | 直接点击安装（需允许"未知来源"）|
+            | Android | `worknmb-*-android.aab` | Google Play Store 上架用 |
+            | Windows | `worknmb-*-windows-x64.zip` | 解压后运行 `worknmb.exe`，便携版 |
+            | macOS   | `worknmb-*-macos.dmg`        | 双击挂载后拖入 Applications 文件夹 |
+            | Linux   | `worknmb-*-linux-x64.tar.gz` | 解压后运行 `worknmb` |
+            | Web     | `worknmb-*-web.zip`          | 解压部署到任意静态 HTTP 服务器 |
+            | iOS     | `worknmb-*-ios-unsigned.ipa` | **未签名** — 仅供 AltStore/Xcode 侧载 |
+
+            ### 注意事项
+
+            - **Android APK** 默认使用 debug keystore 签名，正式上架商店需配置 signing config。
+            - **macOS DMG** 未经 Apple 公证，首次打开会提示"无法验证开发者"，右键 → 打开 即可。
+            - **iOS IPA** 未签名，无法直接安装到普通 iPhone，需 AltStore 等工具侧载或自行签名。
+            - 所有桌面 / 移动安装包都是 release 模式编译，Web 为优化后的静态站点。
