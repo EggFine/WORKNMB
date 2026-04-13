@@ -1,0 +1,58 @@
+name: Deploy Web to Cloudflare Pages
+
+# 触发：
+#   1. 推送到 main 分支 → 部署到 production
+#   2. 其他分支 push 也会跑（Cloudflare Pages 自动当作 preview 环境）
+#   3. PR 也会跑，自动建 preview URL（评论会贴到 PR）
+#   4. 手动触发
+on:
+  push:
+    branches: ['**']  # 所有分支
+  pull_request:
+  workflow_dispatch:
+
+# wrangler-action 需要 deployments:write 才能写部署状态到 GitHub
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write   # 让 wrangler 在 PR 上贴 preview 链接
+
+env:
+  FLUTTER_CHANNEL: beta
+  # 你在 Cloudflare Pages 上创建的项目名
+  CF_PAGES_PROJECT: worknmb
+
+jobs:
+  deploy:
+    name: Build & Deploy Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build web (release)
+        run: flutter build web --release
+
+      # SPA 路由：未知路径都回退到 index.html，否则刷新会 404
+      - name: Add SPA fallback routing
+        run: |
+          cat > build/web/_redirects <<'EOF'
+          /*    /index.html   200
+          EOF
+
+      # 推到 Cloudflare Pages
+      # - main 分支会被识别为 production
+      # - 其他分支 / PR 自动建 preview deployment
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy build/web --project-name=${{ env.CF_PAGES_PROJECT }} --branch=${{ github.head_ref || github.ref_name }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
