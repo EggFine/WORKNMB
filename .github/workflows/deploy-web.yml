@@ -46,6 +46,28 @@ jobs:
           /*    /index.html   200
           EOF
 
+      # ========== 临时诊断：查看 token 能看到哪些账户 / 项目 ==========
+      - name: DIAG - whoami (accounts accessible by token)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: whoami
+
+      - name: DIAG - list all Pages projects in configured account
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project list
+
+      - name: DIAG - echo masked account id length
+        run: |
+          ACCOUNT_ID="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          echo "length=${#ACCOUNT_ID}  (should be 32 hex chars)"
+          echo "first4=${ACCOUNT_ID:0:4}"
+          echo "last4=${ACCOUNT_ID: -4}"
+      # ========== 诊断结束 ==========
+
       # 推到 Cloudflare Pages
       # - main 分支会被识别为 production
       # - 其他分支 / PR 自动建 preview deployment
