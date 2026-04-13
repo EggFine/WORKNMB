@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../app/app_identity.dart';
 import '../../../../../app/theme/app_palette.dart';
@@ -244,7 +246,113 @@ class _AboutCard extends StatelessWidget {
             '和薄弱项建议，帮你判断是否值得留下。',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          _LinkRow(
+            icon: Icons.code_rounded,
+            label: '源码仓库',
+            url: appRepoUrl,
+            subtitle: 'EggFine/WORKNMB',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LinkRow(
+            icon: Icons.public_rounded,
+            label: '在线预览',
+            url: appPreviewUrl,
+            subtitle: appPreviewUrl.replaceFirst('https://', ''),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// 可点击的链接行：左图标 + 标签 + 子文字 + 右箭头。
+///
+/// 点击：
+/// - 主操作：调用 [launchUrl] 用外部浏览器打开
+/// - 失败兜底：复制到剪贴板 + SnackBar 提示
+class _LinkRow extends StatelessWidget {
+  const _LinkRow({
+    required this.icon,
+    required this.label,
+    required this.url,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String label;
+  final String url;
+  final String subtitle;
+
+  Future<void> _open(BuildContext context) async {
+    final uri = Uri.parse(url);
+    bool ok = false;
+    try {
+      ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      ok = false;
+    }
+    if (ok || !context.mounted) return;
+    // 打不开时 fall back 到剪贴板
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('无法直接打开，已复制链接到剪贴板：$url')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _open(context),
+        borderRadius: BorderRadius.circular(AppRadius.chip),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(AppRadius.chip),
+                ),
+                child: Icon(icon, size: AppIconSize.sm, color: scheme.primary),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.open_in_new_rounded,
+                size: AppIconSize.sm,
+                color: scheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -1,12 +1,17 @@
 # WORKNMB
 
+**[English](README.en.md) · 简体中文**
+
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Flutter](https://img.shields.io/badge/Flutter-Material_3-02569B?logo=flutter)](https://flutter.dev)
 [![Platforms](https://img.shields.io/badge/Platforms-Android%20%7C%20iOS%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-brightgreen)]()
+[![Live Demo](https://img.shields.io/badge/Live_Demo-worknmb.eggfine.com-F38020?logo=cloudflare&logoColor=white)](https://worknmb.eggfine.com)
 
 > **Workplace Overall Rating & Key Numeric Metric Benchmark** — 一个定量的工作评分计算器
 
 用 10 个维度量化你当前工作的性价比，通过 `基础分 × 薪资系数` 给出 0–100 的综合评分和 S/A/B/C/D 等级。
+
+**在线体验**：https://worknmb.eggfine.com（Cloudflare Pages，每次 push main 自动更新）
 
 ---
 
