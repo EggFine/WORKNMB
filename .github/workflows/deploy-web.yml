@@ -66,6 +66,45 @@ jobs:
           echo "length=${#ACCOUNT_ID}  (should be 32 hex chars)"
           echo "first4=${ACCOUNT_ID:0:4}"
           echo "last4=${ACCOUNT_ID: -4}"
+
+      - name: DIAG - raw Cloudflare API call
+        run: |
+          ACCOUNT_ID="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
+
+          echo "=== 1. Token verify (should show valid if token works at all) ==="
+          curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" | head -c 500
+          echo ""
+          echo ""
+
+          echo "=== 2. List all accounts this token can access ==="
+          curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            | head -c 2000
+          echo ""
+          echo ""
+
+          echo "=== 3. List Pages projects in the configured account ==="
+          curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            | head -c 2000
+          echo ""
+          echo ""
+
+          echo "=== 4. Direct fetch of 'worknmb' project ==="
+          curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects/worknmb" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            | head -c 1500
+          echo ""
       # ========== 诊断结束 ==========
 
       # 推到 Cloudflare Pages
