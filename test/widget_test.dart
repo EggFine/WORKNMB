@@ -17,19 +17,21 @@ void main() {
     expect(find.text(appShortName), findsWidgets);
     expect(find.text('开始答题'), findsOneWidget);
 
-    // 点击开始答题，进入问卷页，应显示第一题（工作时长）
+    // 点击开始答题，进入问卷页第 1 题：每天实际工作时长
     await tester.tap(find.text('开始答题'));
     await tester.pumpAndSettle();
 
     expect(find.text('每天实际工作时长（含加班）？'), findsOneWidget);
 
-    // 选第一个选项并下一题
-    await tester.tap(find.text('≤ 8 小时'));
+    // 第 1 题现在是数字填空题：点击快捷芯片"8 小时"作答
+    await tester.tap(find.text('8 小时'));
     await tester.pumpAndSettle();
+
+    // 点击"下一题"切到第 2 题
     await tester.tap(find.text('下一题'));
     await tester.pumpAndSettle();
 
-    // 第二题：通勤时间
+    // 第 2 题：单程通勤时间
     expect(find.text('单程通勤时间？'), findsOneWidget);
   });
 }

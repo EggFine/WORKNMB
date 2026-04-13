@@ -78,13 +78,24 @@ class SurveyController extends ChangeNotifier {
     return switch ((q, answer)) {
       (ChoiceQuestion q, ChoiceAnswer a) => q.options[a.index].score,
       (RatingQuestion q, RatingAnswer a) => a.stars * (10 / q.maxRating),
-      (NumericQuestion q, NumericAnswer a) =>
-        q.isSalaryMultiplier
-            ? salaryCoefficientOf(a.value, q.baseline) *
-                  (10 / salaryCoefficientMax)
-            : (a.value / q.baseline * 10).clamp(0, 10),
+      (NumericQuestion q, NumericAnswer a) => _scoreForNumeric(q, a.value),
       _ => 0.0,
     };
+  }
+
+  /// 数字题评分：
+  /// - 薪资系数题：按系数归一化到 0-10（仅用于展示，实际按 totalScore 乘法）。
+  /// - 普通数字题：基于 [NumericQuestion.bestValue] 与 [NumericQuestion.worstValue]
+  ///   做线性插值（支持"越高越好"与"越低越好"两种方向）。
+  double _scoreForNumeric(NumericQuestion q, double v) {
+    if (q.isSalaryMultiplier) {
+      return salaryCoefficientOf(v, q.baseline) * (10 / salaryCoefficientMax);
+    }
+    final best = q.bestValue;
+    final worst = q.worstValue;
+    if (best == worst) return 10; // degenerate — 视为满分
+    final raw = ((v - worst) / (best - worst)) * 10;
+    return raw.clamp(0.0, 10.0);
   }
 
   /// 基础分（0-100）：所有非薪资系数题的平均分 × 10。
@@ -157,7 +168,7 @@ class SurveyController extends ChangeNotifier {
     return switch (_section) {
       AppSection.home =>
         'WORKNMB，即 Workplace Overall Rating & Key Numeric Metric Benchmark。'
-            '用 10 道题量化你当前工作的性价比。',
+            '用 ${questions.length} 道题量化你当前工作的性价比。',
       AppSection.questionnaire => '按题完成评测，可随时返回、跳转并修正答案。',
       AppSection.result =>
         allAnswered ? '结果页会展示综合评分、等级、各因子贡献与薄弱项建议。' : '你还差几题没有完成，继续答题后即可查看完整分析。',

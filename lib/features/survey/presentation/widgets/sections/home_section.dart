@@ -209,7 +209,7 @@ class _MetaBullets extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         dot(),
         const SizedBox(width: AppSpacing.sm),
-        Text('约 4 分钟', style: textStyle),
+        Text('约 5 分钟', style: textStyle),
         const SizedBox(width: AppSpacing.sm),
         dot(),
         const SizedBox(width: AppSpacing.sm),

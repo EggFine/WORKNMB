@@ -241,7 +241,8 @@ class _AboutCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text(
             '这个评测用 ${questions.length} 个维度量化你当前工作的性价比：'
-            '工时、通勤、加班、补偿、休息、环境、同事、晋升、月薪。'
+            '工时、通勤、加班频率、加班补偿、休息日、午休、远程办公、'
+            '年终奖、年假、环境、同事、晋升、月薪。'
             '按"基础分 × 薪资系数"得到 0-100 的综合评分，配合 S/A/B/C/D 等级'
             '和薄弱项建议，帮你判断是否值得留下。',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),

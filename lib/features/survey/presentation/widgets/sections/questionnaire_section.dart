@@ -661,6 +661,9 @@ class _NumericBody extends StatefulWidget {
 class _NumericBodyState extends State<_NumericBody> {
   late final TextEditingController _controller;
 
+  bool get _isSalary => widget.question.isSalaryMultiplier;
+  bool get _allowDecimal => widget.question.allowDecimal;
+
   @override
   void initState() {
     super.initState();
@@ -690,16 +693,35 @@ class _NumericBodyState extends State<_NumericBody> {
     return double.tryParse(raw);
   }
 
+  /// 统一数字格式化：
+  /// - 薪资题（整数）：千分位展示，如 `10,000`
+  /// - 允许小数的普通数字题：非整数保留 1 位小数，如 `8.5`；整数不带小数点
+  /// - 只允许整数的普通数字题：直接展示整数
   String _formatNumber(double v) {
-    // 整数显示 + 千分位
-    final int iv = v.round();
-    final s = iv.toString();
-    final buffer = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buffer.write(',');
-      buffer.write(s[i]);
+    if (_isSalary) {
+      final iv = v.round();
+      final s = iv.toString();
+      final buffer = StringBuffer();
+      for (int i = 0; i < s.length; i++) {
+        if (i > 0 && (s.length - i) % 3 == 0) buffer.write(',');
+        buffer.write(s[i]);
+      }
+      return buffer.toString();
     }
-    return buffer.toString();
+    if (_allowDecimal && v != v.roundToDouble()) {
+      return v.toStringAsFixed(1);
+    }
+    return v.round().toString();
+  }
+
+  /// 快捷芯片 label：薪资用"1 万 / 8k"；其他用"8 小时 / 30 分钟"这种带单位格式
+  String _formatQuickPick(double v) {
+    if (_isSalary) {
+      return v >= 10000
+          ? '${(v / 10000).toStringAsFixed(v % 10000 == 0 ? 0 : 1)} 万'
+          : '${(v / 1000).toStringAsFixed(0)}k';
+    }
+    return '${_formatNumber(v)} ${widget.question.unit}';
   }
 
   @override
@@ -708,8 +730,6 @@ class _NumericBodyState extends State<_NumericBody> {
     final scheme = theme.colorScheme;
     final q = widget.question;
     final current = _parseCurrent() ?? q.defaultValue;
-    final coefficient = salaryCoefficientOf(current, q.baseline);
-    final atCap = coefficient >= salaryCoefficientMax;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,28 +737,36 @@ class _NumericBodyState extends State<_NumericBody> {
         // —— 输入框 ——
         TextField(
           controller: _controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: false),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9,]')),
-            _ThousandsFormatter(),
-          ],
+          keyboardType: TextInputType.numberWithOptions(decimal: _allowDecimal),
+          inputFormatters: _isSalary
+              ? [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,]')),
+                  _ThousandsFormatter(),
+                ]
+              : [
+                  FilteringTextInputFormatter.allow(
+                    RegExp(_allowDecimal ? r'[0-9.]' : r'[0-9]'),
+                  ),
+                ],
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w800,
           ),
           decoration: InputDecoration(
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(
-                left: AppSpacing.md,
-                right: AppSpacing.xs,
-              ),
-              child: Text(
-                '¥',
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
+            prefixIcon: _isSalary
+                ? Padding(
+                    padding: const EdgeInsets.only(
+                      left: AppSpacing.md,
+                      right: AppSpacing.xs,
+                    ),
+                    child: Text(
+                      '¥',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  )
+                : null,
             prefixIconConstraints: const BoxConstraints(
               minWidth: 0,
               minHeight: 0,
@@ -776,7 +804,7 @@ class _NumericBodyState extends State<_NumericBody> {
         const SizedBox(height: AppSpacing.md),
         // —— 快速选择 ——
         Text(
-          '快捷金额',
+          _isSalary ? '快捷金额' : '常见值',
           style: theme.textTheme.labelLarge?.copyWith(
             color: scheme.onSurfaceVariant,
             fontWeight: FontWeight.w600,
@@ -789,11 +817,7 @@ class _NumericBodyState extends State<_NumericBody> {
           children: [
             for (final v in q.quickPicks)
               ActionChip(
-                label: Text(
-                  v >= 10000
-                      ? '${(v / 10000).toStringAsFixed(v % 10000 == 0 ? 0 : 1)} 万'
-                      : '${(v / 1000).toStringAsFixed(0)}k',
-                ),
+                label: Text(_formatQuickPick(v)),
                 onPressed: () {
                   _controller.text = _formatNumber(v);
                   _controller.selection = TextSelection.fromPosition(
@@ -805,54 +829,99 @@ class _NumericBodyState extends State<_NumericBody> {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        // —— 实时系数显示 ——
-        AnimatedContainer(
-          duration: AppDurations.fast,
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(AppRadius.card),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.calculate_rounded,
-                color: scheme.primary,
-                size: AppIconSize.md,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '薪资系数 ×${coefficient.toStringAsFixed(2)}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      atCap
-                          ? '已达到封顶系数 ×${salaryCoefficientMax.toStringAsFixed(1)}（薪资越高不再继续加成）'
-                          : '基准值 ${_formatNumber(q.baseline)} 元 / 月 = ×1.00',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        // —— 实时反馈（薪资题显示系数；其他数字题显示当前得分）——
+        _FeedbackCard(question: q, currentValue: current),
       ],
     );
   }
 }
 
-/// 千分位格式化：用户输入时实时加/移逗号，保留光标位置近似合理。
+/// 数字题下方的实时反馈卡：薪资题显示系数；其他数字题显示"当前得分 N/10"。
+class _FeedbackCard extends StatelessWidget {
+  const _FeedbackCard({required this.question, required this.currentValue});
+
+  final NumericQuestion question;
+  final double currentValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isSalary = question.isSalaryMultiplier;
+
+    String title;
+    String subtitle;
+    IconData icon;
+
+    if (isSalary) {
+      final coefficient = salaryCoefficientOf(currentValue, question.baseline);
+      final atCap = coefficient >= salaryCoefficientMax;
+      title = '薪资系数 ×${coefficient.toStringAsFixed(2)}';
+      subtitle = atCap
+          ? '已达到封顶系数 ×${salaryCoefficientMax.toStringAsFixed(1)}（薪资越高不再继续加成）'
+          : '基准值 ${question.baseline.round()} 元 / 月 = ×1.00';
+      icon = Icons.calculate_rounded;
+    } else {
+      final score = _linearScore(question, currentValue);
+      title = '当前得分 ${score.toStringAsFixed(1)} / 10';
+      final higher = question.bestValue > question.worstValue;
+      subtitle = higher
+          ? '越接近 ${_fmt(question.bestValue)} ${question.unit}得分越高；低于 ${_fmt(question.worstValue)} ${question.unit}得 0 分'
+          : '越接近 ${_fmt(question.bestValue)} ${question.unit}得分越高；高于 ${_fmt(question.worstValue)} ${question.unit}得 0 分';
+      icon = Icons.score_rounded;
+    }
+
+    return AnimatedContainer(
+      duration: AppDurations.fast,
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: scheme.primary, size: AppIconSize.md),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _fmt(double v) {
+    if (v == v.roundToDouble()) return v.round().toString();
+    return v.toStringAsFixed(1);
+  }
+
+  static double _linearScore(NumericQuestion q, double v) {
+    final best = q.bestValue;
+    final worst = q.worstValue;
+    if (best == worst) return 10;
+    return (((v - worst) / (best - worst)) * 10).clamp(0.0, 10.0);
+  }
+}
+
+/// 千分位格式化：用户输入时实时加/移逗号（仅用于薪资题）。
 class _ThousandsFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(

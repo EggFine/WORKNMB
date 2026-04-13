@@ -1,9 +1,10 @@
 /// WORKNMB 工作评分题库与数据模型。
 ///
 /// 使用 sealed class + pattern matching 支持三种题型：
-/// - [ChoiceQuestion]：单选题（工时 / 通勤 / 加班 / 加班费 / 休息日 / 午休）
+/// - [ChoiceQuestion]：单选题（加班补偿 / 休息日）
 /// - [RatingQuestion]：5 级评分题（工作环境 / 同事关系 / 职业发展）
-/// - [NumericQuestion]：数字输入题（月薪 — 同时作为最终得分的薪资系数）
+/// - [NumericQuestion]：数字填空题（工时 / 通勤 / 加班天数 / 午休 / 远程天数 /
+///   年终奖 / 年假，以及月薪——月薪同时作为薪资系数参与最终评分）
 library;
 
 /// 题目基类。所有题目都具备共同的展示字段。
@@ -58,8 +59,16 @@ class RatingQuestion extends QuizQuestion {
   final List<String> labels;
 }
 
-/// 数字输入题。当 [isSalaryMultiplier] 为 true 时，此题的答案会作为
-/// 薪资系数参与最终得分计算（系数 = 输入值 / [baseline]，封顶 2.5）。
+/// 数字输入题。
+///
+/// 通过 [bestValue] 与 [worstValue] 定义线性评分映射：
+/// - 输入值 = [bestValue] → 得分 10
+/// - 输入值 = [worstValue] → 得分 0
+/// - 之间按线性插值；超出两端 clamp 到 [0, 10]
+///
+/// 当 [isSalaryMultiplier] 为 true 时，[bestValue]/[worstValue] 被忽略，
+/// 此题不计入基础分，而是作为"薪资系数"乘到最终总分上
+/// （系数 = 输入值 / [baseline]，封顶 2.5）。
 class NumericQuestion extends QuizQuestion {
   const NumericQuestion({
     required super.id,
@@ -72,10 +81,13 @@ class NumericQuestion extends QuizQuestion {
     required this.defaultValue,
     required this.unit,
     required this.quickPicks,
+    this.bestValue = 0,
+    this.worstValue = 0,
     this.isSalaryMultiplier = false,
+    this.allowDecimal = false,
   });
 
-  /// 1.0 系数对应的基准值（月薪题 = 10000）。
+  /// 1.0 系数 / 基准值（薪资题 = 10000；其他题主要用于展示）。
   final double baseline;
 
   /// 输入允许的最小 / 最大 / 默认值。
@@ -83,14 +95,25 @@ class NumericQuestion extends QuizQuestion {
   final double maxValue;
   final double defaultValue;
 
-  /// 单位后缀（"元/月"）。
+  /// 单位后缀（"元" / "小时" / "分钟" / "天/周" 等）。
   final String unit;
 
-  /// 快速选择芯片（如 [5000, 8000, 10000, 15000, 20000, 30000]）。
+  /// 快速选择芯片。
   final List<double> quickPicks;
+
+  /// 对应满分 10 的输入值（非薪资题使用）。
+  /// 如果 [bestValue] > [worstValue]：越大越好
+  /// 如果 [bestValue] < [worstValue]：越小越好
+  final double bestValue;
+
+  /// 对应 0 分的输入值（非薪资题使用）。
+  final double worstValue;
 
   /// 是否作为薪资乘数参与评分。
   final bool isSalaryMultiplier;
+
+  /// 是否允许小数（工时这类要 0.5 精度，月薪这类只能整数）。
+  final bool allowDecimal;
 }
 
 /// 单选题的选项。
@@ -155,46 +178,56 @@ enum ScoreGrade {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  题库
+//  题库（13 题：7 数字 + 2 单选 + 3 评分 + 1 薪资系数）
 // ════════════════════════════════════════════════════════════════════════════
 
 const questions = <QuizQuestion>[
-  ChoiceQuestion(
+  // —————————————————————— 时间类（数字填空）——————————————————————
+  NumericQuestion(
     id: 'workHours',
     category: '工作时长',
     title: '每天实际工作时长（含加班）？',
-    hint: '按最近一个月的平均状态选。',
-    options: [
-      QuizOption('≤ 8 小时', '朝九晚六，基本不加班。', 10),
-      QuizOption('8-10 小时', '偶尔有点延时，大多准时下班。', 7),
-      QuizOption('10-12 小时', '经常加班，一般 10 点左右下班。', 3),
-      QuizOption('> 12 小时', '996 或更高强度。', 0),
-    ],
+    hint: '按最近一个月的平均状态填写，可精确到半小时。',
+    baseline: 8,
+    minValue: 4,
+    maxValue: 16,
+    defaultValue: 9,
+    unit: '小时',
+    quickPicks: [8, 9, 10, 11, 12],
+    bestValue: 8, // 8 小时合理
+    worstValue: 13, // 13 小时及以上几乎 0 分
+    allowDecimal: true,
   ),
-  ChoiceQuestion(
+  NumericQuestion(
     id: 'commute',
     category: '通勤',
     title: '单程通勤时间？',
-    hint: '门到门的总时间（含等车/换乘）。',
-    options: [
-      QuizOption('< 30 分钟', '步行 / 骑车 / 短途公交。', 10),
-      QuizOption('30-60 分钟', '城市平均水平。', 7),
-      QuizOption('60-90 分钟', '跨区通勤，耗时偏长。', 3),
-      QuizOption('> 90 分钟', '堪称跨城，通勤吞掉整个晚上。', 0),
-    ],
+    hint: '门到门总时间（含等车 / 换乘），单位分钟。',
+    baseline: 30,
+    minValue: 0,
+    maxValue: 180,
+    defaultValue: 40,
+    unit: '分钟',
+    quickPicks: [15, 30, 45, 60, 90],
+    bestValue: 10,
+    worstValue: 90,
   ),
-  ChoiceQuestion(
-    id: 'overtimeFreq',
+  NumericQuestion(
+    id: 'overtimeDays',
     category: '加班频率',
-    title: '加班频率？',
-    hint: '下班时间超过合同 / 规定的情况。',
-    options: [
-      QuizOption('从不或几乎没有', '合同时间结束就能走。', 10),
-      QuizOption('偶尔（每周 1 次以内）', '确实忙的时候才多留一会。', 6),
-      QuizOption('经常（每周 2-3 次）', '项目 / 交付季常态。', 3),
-      QuizOption('几乎每天', '常态化加班。', 0),
-    ],
+    title: '最近一个月平均每周加班几天？',
+    hint: '下班时间明显超出规定时间的天数。',
+    baseline: 1,
+    minValue: 0,
+    maxValue: 7,
+    defaultValue: 1,
+    unit: '天/周',
+    quickPicks: [0, 1, 2, 3, 5],
+    bestValue: 0,
+    worstValue: 5,
+    allowDecimal: true,
   ),
+  // —————————————————————— 补偿 / 制度类（单选）——————————————————————
   ChoiceQuestion(
     id: 'overtimePay',
     category: '加班补偿',
@@ -219,18 +252,65 @@ const questions = <QuizQuestion>[
       QuizOption('无固定休息', '看排班 / 项目随时被叫走。', 0),
     ],
   ),
-  ChoiceQuestion(
+  NumericQuestion(
     id: 'lunchBreak',
     category: '午休',
-    title: '午休可以休多久？',
-    hint: '真正能用来休息的时间（含吃饭）。',
-    options: [
-      QuizOption('> 90 分钟', '可以午睡一会。', 10),
-      QuizOption('60-90 分钟', '吃完能眯一会。', 8),
-      QuizOption('30-60 分钟', '吃完饭就要接着干活。', 5),
-      QuizOption('< 30 分钟', '基本没有午休。', 1),
-    ],
+    title: '午休可用时长？',
+    hint: '含吃饭 + 休息，按公司实际允许的时长填。',
+    baseline: 60,
+    minValue: 0,
+    maxValue: 180,
+    defaultValue: 60,
+    unit: '分钟',
+    quickPicks: [30, 45, 60, 90, 120],
+    bestValue: 90,
+    worstValue: 15,
   ),
+  // —————————————————————— 福利类（数字填空）——————————————————————
+  NumericQuestion(
+    id: 'wfhDays',
+    category: '远程办公',
+    title: '每周可远程办公天数？',
+    hint: '公司允许的 WFH / 居家办公天数。',
+    baseline: 0,
+    minValue: 0,
+    maxValue: 5,
+    defaultValue: 0,
+    unit: '天/周',
+    quickPicks: [0, 1, 2, 3, 5],
+    bestValue: 3, // 3 天 WFH + 2 天去办公室是当下最优解
+    worstValue: 0,
+  ),
+  NumericQuestion(
+    id: 'annualBonus',
+    category: '年终奖',
+    title: '年终奖约合几个月工资？',
+    hint: '折算为基本月薪的月数。没有填 0，不确定按保守估计。',
+    baseline: 1,
+    minValue: 0,
+    maxValue: 24,
+    defaultValue: 1,
+    unit: '个月',
+    quickPicks: [0, 1, 2, 3, 6],
+    bestValue: 6,
+    worstValue: 0,
+    allowDecimal: true,
+  ),
+  NumericQuestion(
+    id: 'annualLeave',
+    category: '年假',
+    title: '实际可休的年假天数（法定 + 公司福利）？',
+    hint: '不是名义上有的天数，是"真的能休完"的天数。',
+    baseline: 5,
+    minValue: 0,
+    maxValue: 30,
+    defaultValue: 5,
+    unit: '天',
+    quickPicks: [5, 10, 15, 20, 25],
+    bestValue: 20,
+    worstValue: 5,
+  ),
+  // —————————————————————— 体验类（评分）——————————————————————
   RatingQuestion(
     id: 'environment',
     category: '工作环境',
@@ -252,11 +332,12 @@ const questions = <QuizQuestion>[
     hint: '学习机会、晋升通道、薪资成长路径。',
     labels: ['无望', '很少', '一般', '清晰', '很好'],
   ),
+  // —————————————————————— 薪资系数 ——————————————————————
   NumericQuestion(
     id: 'salary',
     category: '月薪',
     title: '你的税前月薪是多少？',
-    hint: '以 10000 元/月 为 1.0 系数，薪资越高最终得分越高（封顶 ×2.5）。',
+    hint: '以 10000 元/月 为 1.0 系数，越高得分越高（封顶 ×2.5）。',
     baseline: 10000,
     minValue: 1000,
     maxValue: 100000,
@@ -286,10 +367,13 @@ double salaryCoefficientOf(double value, double baseline) {
 const Map<String, String> improvementTips = {
   'workHours': '评估工时是否合法，和管理沟通减负；长期超时工作代价远大于短期收益。',
   'commute': '搬家 / 就近换工作 / 争取远程，通勤每少 30 分钟，幸福感显著提升。',
-  'overtimeFreq': '加班频率高说明人力不足或管理问题，值得做跳槽对比。',
+  'overtimeDays': '加班频率高说明人力不足或管理问题，值得做跳槽对比。',
   'overtimePay': '无补偿加班违反《劳动法》，保留证据以备维权或谈判。',
   'restDays': '每周少于一天休息严重违规，是硬性跳槽信号。',
   'lunchBreak': '吃饭都赶时间的公司，健康和专注度都在被透支。',
+  'wfhDays': '强制坐班会让通勤成本和体力消耗放大；争取至少每周 1-2 天远程。',
+  'annualBonus': '年终奖少说明薪酬结构保守或公司业绩弱，谈薪时用月薪涨幅弥补。',
+  'annualLeave': '年假没法真正休完，和"有年假"没区别；把它算进隐性加班。',
   'environment': '硬件条件影响每天 8 小时的基础体验，和 HR 提出改善或评估换岗。',
   'colleagues': '同事关系紧张是最隐性的成本，如果无法改善，考虑跨部门或换团队。',
   'career': '看不到上升通道时，主动找导师 / 外部机会；停留太久成长会停滞。',

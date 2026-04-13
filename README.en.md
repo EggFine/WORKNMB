@@ -9,9 +9,9 @@
 
 > **Workplace Overall Rating & Key Numeric Metric Benchmark** — a quantitative job rating calculator.
 
-Score your current job across 10 weighted dimensions, apply a salary coefficient, and get a 0–100 overall grade (S/A/B/C/D) with actionable improvement suggestions.
+Score your current job across 13 weighted dimensions, apply a salary coefficient, and get a 0–100 overall grade (S/A/B/C/D) with actionable improvement suggestions.
 
-**Live demo**: https://worknmb.eggfine.com (Cloudflare Pages, auto-redeployed on every push to `main`)
+**Live demo**: <https://worknmb.eggfine.com> (Cloudflare Pages, auto-redeployed on every push to `main`).
 
 ---
 
@@ -19,7 +19,7 @@ Score your current job across 10 weighted dimensions, apply a salary coefficient
 
 This is not another personality quiz — it is a **quantitative** tool:
 
-- Breaks a job down into 10 measurable dimensions (work hours, commute, overtime, overtime pay, rest days, lunch break, environment, colleagues, career growth, monthly salary).
+- Breaks a job down into 13 measurable dimensions (work hours, commute, overtime frequency, overtime pay, rest days, lunch break, work-from-home days, annual bonus, paid leave, environment, colleagues, career growth, monthly salary).
 - Combines them as `BaseScore × SalaryCoefficient` to produce a 0–100 composite score.
 - Displays an S / A / B / C / D grade badge.
 - Automatically surfaces the three lowest-scoring factors with context-specific advice.
@@ -31,7 +31,7 @@ The app runs entirely on-device; no data is uploaded anywhere.
 ## Scoring Formula
 
 ```
-BaseScore   = average(9 non-salary factor scores) × 10      range [0, 100]
+BaseScore   = average(12 non-salary factor scores) × 10     range [0, 100]
 SalaryCoef  = clamp(monthlySalary / 10000, 0.1, 2.5)
 TotalScore  = clamp(BaseScore × SalaryCoef, 0, 100)
 
@@ -43,24 +43,48 @@ Grades:
   D  [0,  40)    consider switching jobs
 ```
 
+**How are numeric questions scored?** Each numeric question defines a `bestValue` (mapped to score 10) and a `worstValue` (mapped to score 0). The user's input is linearly interpolated between the two anchors and clamped to `[0, 10]`. Example: work-hours best=8, worst=13 → an input of 10 hours scores 6.0.
+
 **Why 10,000 CNY / month as the baseline?** It is a common median for workers in China's tier-1 / new tier-1 cities. 1k → ×0.1; 10k → ×1.0; 30k → ×3.0 (capped at ×2.5 so high salaries cannot dominate the score).
 
 ---
 
-## Question Bank (10 questions)
+## Question Bank (13 questions)
 
-| # | Question | Type | Role |
-|---|----------|------|------|
-| 1 | Actual daily work hours (including overtime) | single-choice × 4 | base |
-| 2 | One-way commute time | single-choice × 4 | base |
-| 3 | Overtime frequency | single-choice × 4 | base |
-| 4 | Overtime compensation | single-choice × 4 | base |
-| 5 | Weekend rest situation (2-day / alternating / 1-day / none) | single-choice × 4 | base |
-| 6 | Lunch break length | single-choice × 4 | base |
-| 7 | Work environment (hardware, ambience) | 5-point rating | base |
-| 8 | Colleague / manager relationships | 5-point rating | base |
-| 9 | Career development / promotion ceiling | 5-point rating | base |
-| 10 | Pre-tax monthly salary | **numeric input** | **salary coefficient** |
+Grouped by question type:
+
+### Numeric inputs (7 questions — for precision)
+
+| # | Question | Unit | Best value (10) | Worst value (0) |
+|---|----------|------|-----------------|-----------------|
+| 1 | Actual daily work hours (including overtime) | hours | 8 | 13 |
+| 2 | One-way commute time | minutes | 10 | 90 |
+| 3 | Overtime days per week | days/week | 0 | 5 |
+| 4 | Lunch break length | minutes | 90 | 15 |
+| 5 | Work-from-home days per week | days/week | 3 | 0 |
+| 6 | Annual bonus equivalent | months | 6 | 0 |
+| 7 | Actual usable paid leave (statutory + company) | days | 20 | 5 |
+
+### Single-choice (2 questions — discrete policy items)
+
+| # | Question | Top-scoring option |
+|---|----------|--------------------|
+| 8 | Overtime compensation | No overtime / paid at 1.5×, 2×, 3× |
+| 9 | Weekend rest | Full two-day weekend |
+
+### 5-point ratings (3 questions — subjective experience)
+
+| # | Question | Rating labels |
+|---|----------|---------------|
+| 10 | Work environment satisfaction | Poor / Fair / OK / Good / Great |
+| 11 | Colleague / manager relationships | Poor / Fair / OK / Good / Great |
+| 12 | Career development / promotion ceiling | Hopeless / Limited / OK / Clear / Great |
+
+### Salary coefficient (1 question — multiplicative)
+
+| # | Question | Unit | Baseline | Coefficient range |
+|---|----------|------|----------|-------------------|
+| 13 | Pre-tax monthly salary | CNY | 10,000 | ×0.1 to ×2.5 (capped) |
 
 All questions live in `lib/features/survey/domain/survey_data.dart`. Editing the list is the only change needed to customize the survey.
 
@@ -96,7 +120,9 @@ All visual primitives are centralized in `lib/app/theme/design_tokens.dart`. No 
 
 - **Choice** — `_OptionCard` with subtle selected-state shadow and scale animation.
 - **Rating** — 5 buttons in a row with short Chinese labels (e.g. `Poor / Fair / OK / Good / Great`).
-- **Numeric** (salary) — large currency input with real-time thousands separator, quick-pick chips (5k / 10k / 20k / 30k), and live salary-coefficient display.
+- **Numeric** — conditional UI that adapts to the question:
+  - **Salary** — large `¥`-prefixed input with real-time thousands separator, quick-pick chips (5k / 10k / 20k / 30k), and live salary-coefficient display.
+  - **Other numerics** (hours, minutes, days, etc.) — no `¥` prefix, decimals allowed where useful (e.g. `8.5` hours), quick-picks include the unit (`8 小时` / `30 分钟`), and the bottom card shows a live `Current score N/10` based on the question's `bestValue` / `worstValue` anchors.
 
 ### Result screen
 
@@ -280,13 +306,16 @@ NumericQuestion(
   category: 'tag',
   title: 'Prompt?',
   hint: 'Guidance text.',
-  baseline: 10000,
-  minValue: 1000,
-  maxValue: 100000,
-  defaultValue: 8000,
-  unit: 'CNY',
-  quickPicks: [5000, 10000, 20000],
-  isSalaryMultiplier: false,  // true makes this the salary coefficient (excluded from base score)
+  baseline: 60,
+  minValue: 0,
+  maxValue: 180,
+  defaultValue: 60,
+  unit: 'minutes',
+  quickPicks: [30, 60, 90, 120],
+  bestValue: 90,        // input that maps to score 10
+  worstValue: 15,       // input that maps to score 0; best > worst means "higher is better", reverse for "lower is better"
+  allowDecimal: false,  // set true to allow inputs like 8.5
+  isSalaryMultiplier: false,  // true makes this the salary coefficient (best/worst ignored, excluded from base score)
 ),
 ```
 
