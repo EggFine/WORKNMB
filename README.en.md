@@ -316,6 +316,8 @@ Triggers on every push to any branch (plus PRs and `workflow_dispatch`):
 - `main` → production (`worknmb.eggfine.com` / `worknmb.pages.dev`).
 - Other branches / PRs → automatic preview URLs with wrangler comments on the PR.
 
+**Auto-release on every push to main**: the multi-platform release workflow reads the latest `v*` tag, bumps its patch component, creates and pushes the new tag, and runs all 6 platform builds. Push a specific tag (e.g. `v2.0.0`) to override this and jump a major/minor. Add the literal keyword "skip release" (wrapped in square brackets) anywhere in a commit message to bypass the workflow entirely — handy for README-only edits.
+
 Required repository secrets:
 
 - `CLOUDFLARE_API_TOKEN` — user-level API token with `Account > Cloudflare Pages > Edit`

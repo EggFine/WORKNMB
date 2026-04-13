@@ -401,12 +401,16 @@ const Map<String, String> improvementTips = {
 
 **触发方式**
 
-1. 推送形如 `v1.2.3` 的 tag：
+1. **Push 到 main 自动发版**（默认）：每次 push 会自动读取最新 tag、递增 patch（`v1.0.0` → `v1.0.1` → ...）、创建新 tag 并跑完 6 平台构建，发到 Releases 页。
+2. **手动控制大版本**：
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v2.0.0
+   git push origin v2.0.0
    ```
-2. 在 GitHub 仓库 Actions 页面点击 **Run workflow**，手动输入版本号。
+   推特定 tag 时 workflow 直接用那个作为版本号，不自动递增。
+3. **Actions 页面手动触发**：可以输入自定义版本号（留空则自动递增 patch）。
+
+**跳过某次 push 的发版**：commit message 里加上 `skip release` 关键短语（方括号包裹），整个 workflow 会被跳过。适合改 README、调 Actions YAML 这种不需要出正式版的场景。
 
 **流水线流程**
 
