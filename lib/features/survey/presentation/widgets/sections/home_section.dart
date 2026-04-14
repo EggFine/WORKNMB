@@ -3,11 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../../../app/app_identity.dart';
 import '../../../../../app/i18n/app_strings.dart';
 import '../../../../../app/theme/design_tokens.dart';
-import '../../../../../app/widgets/responsive.dart';
 import '../../controllers/survey_controller.dart';
 import '../common/survey_common_widgets.dart';
 
-/// 首页 / 登陆页：采用现代双栏（宽屏）或堆叠（窄屏）布局。
+/// 首页 / 登陆页：采用全新设计的 Bento Box (便当盒) 聚合网格布局，彻底重构 UI。
 class HomeSection extends StatelessWidget {
   const HomeSection({
     required this.controller,
@@ -22,463 +21,405 @@ class HomeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final strings = AppStrings.of(context);
-    final hasProgress = controller.answeredCount > 0;
-    final allAnswered = controller.allAnswered;
-
-    final ctaLabel = allAnswered
-        ? strings.homeRestartButton
-        : (hasProgress ? strings.homeContinueButton : strings.homeStartButton);
-    final ctaIcon = allAnswered
-        ? Icons.replay_rounded
-        : Icons.play_arrow_rounded;
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = Responsive.isWideContent(constraints.maxWidth);
+        final width = constraints.maxWidth;
+        final isWide = width >= 900;
+        final isMedium = width >= 600 && width < 900;
 
-        Widget content;
-        if (wide) {
-          content = Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                flex: 11,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: AppSpacing.xxl),
-                  child: _HeroTextAndActions(
-                    controller: controller,
-                    ctaLabel: ctaLabel,
-                    ctaIcon: ctaIcon,
-                    hasProgress: hasProgress,
-                    allAnswered: allAnswered,
-                    onStartOrContinue: onStartOrContinue,
-                    onViewResult: onViewResult,
-                    centered: false,
-                  ),
-                ),
-              ),
-              const Expanded(
-                flex: 9,
-                child: Center(
-                  child: _HeroVisual(),
-                ),
-              ),
-            ],
-          );
-        } else {
-          content = Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: AppSpacing.xl),
-              const _HeroVisual(),
-              const SizedBox(height: AppSpacing.xxl),
-              _HeroTextAndActions(
-                controller: controller,
-                ctaLabel: ctaLabel,
-                ctaIcon: ctaIcon,
-                hasProgress: hasProgress,
-                allAnswered: allAnswered,
-                onStartOrContinue: onStartOrContinue,
-                onViewResult: onViewResult,
-                centered: true,
-              ),
-              const SizedBox(height: AppSpacing.xl),
-            ],
-          );
-        }
-
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        if (isWide) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 40),
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: AppLayout.maxContentWidth,
-                ),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: wide ? AppSpacing.xxl : AppSpacing.xl,
-                    vertical: wide ? 80 : AppSpacing.xxl,
-                  ),
-                  child: content,
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 7,
+                      child: Column(
+                        children: [
+                          _buildHeroTile(context, height: 360),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildInfoTile(context, height: 240),
+                              ),
+                              const SizedBox(width: 24),
+                              Expanded(
+                                child: _buildMetaTile(context, height: 240),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 5,
+                      child: _buildActionTile(context, height: 624),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-        );
+          );
+        } else if (isMedium) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              children: [
+                _buildHeroTile(context, height: 300),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(child: _buildInfoTile(context, height: 220)),
+                    const SizedBox(width: 20),
+                    Expanded(child: _buildMetaTile(context, height: 220)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _buildActionTile(context, height: 420),
+              ],
+            ),
+          );
+        } else {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              children: [
+                _buildHeroTile(context, height: 300),
+                const SizedBox(height: 16),
+                _buildActionTile(context, height: 420),
+                const SizedBox(height: 16),
+                _buildInfoTile(context, height: 240),
+                const SizedBox(height: 16),
+                _buildMetaTile(context, height: 240),
+              ],
+            ),
+          );
+        }
       },
     );
   }
-}
 
-class _HeroTextAndActions extends StatelessWidget {
-  const _HeroTextAndActions({
-    required this.controller,
-    required this.ctaLabel,
-    required this.ctaIcon,
-    required this.hasProgress,
-    required this.allAnswered,
-    required this.onStartOrContinue,
-    required this.onViewResult,
-    required this.centered,
-  });
+  Widget _buildHeroTile(BuildContext context, {required double height}) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
-  final SurveyController controller;
-  final String ctaLabel;
-  final IconData ctaIcon;
-  final bool hasProgress;
-  final bool allAnswered;
-  final VoidCallback onStartOrContinue;
-  final VoidCallback onViewResult;
-  final bool centered;
+    return _BentoCard(
+      height: height,
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [scheme.primary, scheme.tertiary],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -60,
+            top: -40,
+            child: Icon(
+              Icons.insights_rounded,
+              size: 280,
+              color: Colors.white.withValues(alpha: 0.15),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.query_stats_rounded,
+                  size: 48,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                appShortName,
+                style: theme.textTheme.displayLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                appFullName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildActionTile(BuildContext context, {required double height}) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final strings = AppStrings.of(context);
-    final alignment =
-        centered ? CrossAxisAlignment.center : CrossAxisAlignment.start;
-    final textAlign = centered ? TextAlign.center : TextAlign.left;
 
-    return Column(
-      crossAxisAlignment: alignment,
-      children: [
-        ShaderMask(
-          shaderCallback: (bounds) => LinearGradient(
-            colors: [scheme.primary, scheme.tertiary],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ).createShader(bounds),
-          child: Text(
-            appShortName,
-            textAlign: textAlign,
-            style: theme.textTheme.displayLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          appFullName,
-          textAlign: textAlign,
-          style: theme.textTheme.headlineSmall?.copyWith(
-            color: scheme.onSurfaceVariant,
-            height: 1.3,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        Text(
-          strings.homeIntro,
-          textAlign: textAlign,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: scheme.onSurfaceVariant,
-            height: 1.6,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xxl),
-        Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.md,
-          alignment: centered ? WrapAlignment.center : WrapAlignment.start,
-          children: [
-            _PrimaryCta(
-              label: ctaLabel,
-              icon: ctaIcon,
-              onPressed: onStartOrContinue,
-            ),
-            if (allAnswered)
-              SizedBox(
-                height: 56,
-                child: FilledButton.tonalIcon(
-                  onPressed: onViewResult,
-                  icon: const Icon(Icons.insights_rounded),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xl,
-                    ),
-                    textStyle: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  label: Text(strings.homeViewResultButton),
+    final answered = controller.answeredCount;
+    final total = controller.questions.length;
+    final progress = controller.progress;
+    final allAnswered = controller.allAnswered;
+
+    final ctaLabel =
+        allAnswered
+            ? strings.homeRestartButton
+            : (answered > 0
+                ? strings.homeContinueButton
+                : strings.homeStartButton);
+    final ctaIcon =
+        allAnswered ? Icons.replay_rounded : Icons.play_arrow_rounded;
+
+    return _BentoCard(
+      height: height,
+      color: scheme.surfaceContainerHighest,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.track_changes_rounded, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                allAnswered ? strings.sectionResult : strings.progressTitle,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        if (hasProgress && !allAnswered)
-          _ProgressIndicatorStrip(controller: controller, centered: centered)
-        else
-          _MetaBullets(
-            totalQuestions: controller.questions.length,
-            strings: strings,
-            centered: centered,
+            ],
           ),
-      ],
+          const Spacer(),
+          Text(
+            allAnswered ? '100%' : '${(progress * 100).toInt()}%',
+            style: theme.textTheme.displayLarge?.copyWith(
+              fontSize: 88,
+              fontWeight: FontWeight.w900,
+              color: scheme.primary,
+              height: 1.0,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            strings.homeProgressText(answered, total),
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 32),
+          AnimatedValueBar(value: progress, minHeight: 12),
+          const Spacer(),
+          SizedBox(
+            width: double.infinity,
+            height: 64,
+            child: FilledButton.icon(
+              onPressed: onStartOrContinue,
+              icon: Icon(ctaIcon, size: 28),
+              label: Text(
+                ctaLabel,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+          ),
+          if (allAnswered) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 64,
+              child: FilledButton.tonalIcon(
+                onPressed: onViewResult,
+                icon: const Icon(Icons.insights_rounded, size: 28),
+                label: Text(
+                  strings.homeViewResultButton,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
-}
 
-/// 首页视觉：带有光晕和层次感的图标卡片排列。
-class _HeroVisual extends StatelessWidget {
-  const _HeroVisual();
+  Widget _buildInfoTile(BuildContext context, {required double height}) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
 
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return SizedBox(
-      width: 320,
-      height: 320,
-      child: Stack(
-        alignment: Alignment.center,
+    return _BentoCard(
+      height: height,
+      color: scheme.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Background Glow (Primary)
           Container(
-            width: 260,
-            height: 260,
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  scheme.primary.withValues(alpha: 0.25),
-                  scheme.primary.withValues(alpha: 0.0),
-                ],
-                stops: const [0.2, 1.0],
-              ),
-            ),
-          ),
-          // Background Glow (Tertiary)
-          Positioned(
-            right: 10,
-            bottom: 10,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    scheme.tertiary.withValues(alpha: 0.20),
-                    scheme.tertiary.withValues(alpha: 0.0),
-                  ],
-                  stops: const [0.2, 1.0],
-                ),
-              ),
-            ),
-          ),
-          // Main Icon Card
-          Container(
-            width: 180,
-            height: 180,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [scheme.primaryContainer, scheme.tertiaryContainer],
-              ),
-              borderRadius: BorderRadius.circular(40),
-              border: Border.all(
-                color: scheme.onPrimaryContainer.withValues(alpha: 0.05),
-                width: 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: scheme.primary.withValues(alpha: 0.2),
-                  blurRadius: 40,
-                  offset: const Offset(0, 16),
-                ),
-              ],
+              color: scheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
-              Icons.query_stats_rounded,
-              size: 88,
-              color: scheme.onPrimaryContainer,
+              Icons.info_outline_rounded,
+              color: scheme.onSecondaryContainer,
             ),
           ),
-          // Floating badge top right
-          Positioned(
-            top: 40,
-            right: 30,
-            child: Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: scheme.surface,
-                borderRadius: BorderRadius.circular(AppRadius.card),
-                border: Border.all(
-                  color: scheme.outlineVariant.withValues(alpha: 0.5),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: scheme.shadow.withValues(alpha: 0.05),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.auto_awesome_rounded,
-                color: scheme.primary,
-                size: 28,
-              ),
-            ),
-          ),
-          // Floating badge bottom left
-          Positioned(
-            bottom: 50,
-            left: 40,
-            child: Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: scheme.surface,
-                borderRadius: BorderRadius.circular(AppRadius.chip),
-                border: Border.all(
-                  color: scheme.outlineVariant.withValues(alpha: 0.5),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: scheme.shadow.withValues(alpha: 0.05),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.check_circle_rounded,
-                color: scheme.tertiary,
-                size: 24,
-              ),
+          const Spacer(),
+          Text(
+            strings.homeIntro,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: scheme.onSurfaceVariant,
+              height: 1.6,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _PrimaryCta extends StatelessWidget {
-  const _PrimaryCta({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 56,
-      child: FilledButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 24),
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          textStyle: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        label: Text(label),
-      ),
-    );
-  }
-}
-
-class _MetaBullets extends StatelessWidget {
-  const _MetaBullets({
-    required this.totalQuestions,
-    required this.strings,
-    required this.centered,
-  });
-
-  final int totalQuestions;
-  final AppStrings strings;
-  final bool centered;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildMetaTile(BuildContext context, {required double height}) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final strings = AppStrings.of(context);
+    final totalQuestions = controller.questions.length;
     final String questionsLabel = switch (strings.locale.locale.languageCode) {
       'ja' => '$totalQuestions 問',
       'en' => '$totalQuestions Q',
       _ => '$totalQuestions 题',
     };
 
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      alignment: centered ? WrapAlignment.center : WrapAlignment.start,
+    return _BentoCard(
+      height: height,
+      color: scheme.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: scheme.tertiaryContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(Icons.tune_rounded, color: scheme.onTertiaryContainer),
+          ),
+          const Spacer(),
+          _buildMetaRow(
+            context,
+            Icons.format_list_numbered_rounded,
+            questionsLabel,
+          ),
+          const SizedBox(height: 16),
+          _buildMetaRow(context, Icons.timer_outlined, strings.homeMetaTime),
+          const SizedBox(height: 16),
+          _buildMetaRow(
+            context,
+            Icons.edit_note_rounded,
+            strings.homeMetaFreeEdit,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetaRow(BuildContext context, IconData icon, String text) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
       children: [
-        StatusChip(
-          icon: Icons.format_list_numbered_rounded,
-          label: questionsLabel,
-        ),
-        StatusChip(icon: Icons.timer_outlined, label: strings.homeMetaTime),
-        StatusChip(
-          icon: Icons.edit_note_rounded,
-          label: strings.homeMetaFreeEdit,
+        Icon(icon, size: 24, color: scheme.primary),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ],
     );
   }
 }
 
-class _ProgressIndicatorStrip extends StatelessWidget {
-  const _ProgressIndicatorStrip({
-    required this.controller,
-    required this.centered,
+class _BentoCard extends StatelessWidget {
+  const _BentoCard({
+    required this.child,
+    required this.height,
+    this.color,
+    this.gradient,
   });
 
-  final SurveyController controller;
-  final bool centered;
+  final Widget child;
+  final double height;
+  final Color? color;
+  final Gradient? gradient;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final strings = AppStrings.of(context);
-    final alignment =
-        centered ? CrossAxisAlignment.center : CrossAxisAlignment.start;
-    final mainAxis =
-        centered ? MainAxisAlignment.center : MainAxisAlignment.start;
-
-    return Column(
-      crossAxisAlignment: alignment,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: mainAxis,
-          children: [
-            Icon(
-              Icons.bookmark_rounded,
-              size: AppIconSize.sm,
-              color: scheme.primary,
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            Text(
-              strings.homeProgressText(
-                controller.answeredCount,
-                controller.questions.length,
-              ),
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: scheme.onSurface,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 320),
-          child: AnimatedValueBar(value: controller.progress),
-        ),
-      ],
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      height: height,
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: gradient == null ? (color ?? scheme.surfaceContainer) : null,
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(32),
+        border:
+            gradient == null
+                ? Border.all(
+                  color: scheme.outlineVariant.withValues(alpha: 0.4),
+                )
+                : null,
+        boxShadow:
+            gradient != null
+                ? [
+                  BoxShadow(
+                    color: scheme.primary.withValues(alpha: 0.25),
+                    blurRadius: 32,
+                    offset: const Offset(0, 16),
+                  ),
+                ]
+                : [],
+      ),
+      child: child,
     );
   }
 }
