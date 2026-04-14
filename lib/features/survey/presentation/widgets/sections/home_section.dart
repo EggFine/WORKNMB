@@ -94,9 +94,9 @@ class HomeSection extends StatelessWidget {
                 const SizedBox(height: 16),
                 _buildActionTile(context, height: 420),
                 const SizedBox(height: 16),
-                _buildInfoTile(context, height: 240),
+                _buildInfoTile(context, height: null),
                 const SizedBox(height: 16),
-                _buildMetaTile(context, height: 240),
+                _buildMetaTile(context, height: null),
               ],
             ),
           );
@@ -276,7 +276,7 @@ class HomeSection extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoTile(BuildContext context, {required double height}) {
+  Widget _buildInfoTile(BuildContext context, {double? height}) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final strings = AppStrings.of(context);
@@ -286,6 +286,7 @@ class HomeSection extends StatelessWidget {
       color: scheme.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: height == null ? MainAxisSize.min : MainAxisSize.max,
         children: [
           Container(
             padding: const EdgeInsets.all(12),
@@ -298,7 +299,7 @@ class HomeSection extends StatelessWidget {
               color: scheme.onSecondaryContainer,
             ),
           ),
-          const Spacer(),
+          if (height != null) const Spacer() else const SizedBox(height: 24),
           Text(
             strings.homeIntro,
             maxLines: 4,
@@ -314,7 +315,7 @@ class HomeSection extends StatelessWidget {
     );
   }
 
-  Widget _buildMetaTile(BuildContext context, {required double height}) {
+  Widget _buildMetaTile(BuildContext context, {double? height}) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final strings = AppStrings.of(context);
@@ -330,6 +331,7 @@ class HomeSection extends StatelessWidget {
       color: scheme.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: height == null ? MainAxisSize.min : MainAxisSize.max,
         children: [
           Container(
             padding: const EdgeInsets.all(12),
@@ -339,7 +341,7 @@ class HomeSection extends StatelessWidget {
             ),
             child: Icon(Icons.tune_rounded, color: scheme.onTertiaryContainer),
           ),
-          const Spacer(),
+          if (height != null) const Spacer() else const SizedBox(height: 24),
           _buildMetaRow(
             context,
             Icons.format_list_numbered_rounded,
@@ -381,13 +383,13 @@ class HomeSection extends StatelessWidget {
 class _BentoCard extends StatelessWidget {
   const _BentoCard({
     required this.child,
-    required this.height,
+    this.height,
     this.color,
     this.gradient,
   });
 
   final Widget child;
-  final double height;
+  final double? height;
   final Color? color;
   final Gradient? gradient;
 
