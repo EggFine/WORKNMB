@@ -202,7 +202,14 @@ class SurveyController extends ChangeNotifier {
   }
 
   void next() {
-    if (!isCurrentAnswered) return;
+    if (!isCurrentAnswered) {
+      final q = question;
+      if (q is NumericQuestion) {
+        setNumeric(q.defaultValue);
+      } else {
+        return;
+      }
+    }
 
     if (_currentQuestionIndex == questions.length - 1) {
       final nextUnanswered = firstUnansweredIndex;
