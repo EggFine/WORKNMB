@@ -66,27 +66,36 @@ class HomeSection extends StatelessWidget {
   }
 
   Widget _buildCompactLayout(BuildContext context, BoxConstraints constraints) {
+    final double availableHeight = constraints.maxHeight;
+    final bool isCompactHeight = availableHeight < 750;
+
+    // 动态缩放插图，确保在高度较低的手机上也能将内容推上去，不会被挤出屏幕
+    final double graphicSize = (availableHeight * 0.28).clamp(140.0, 320.0);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
         horizontal: AppSpacing.xl,
-        vertical: AppSpacing.xxl,
+        vertical: isCompactHeight ? AppSpacing.lg : AppSpacing.xxl,
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          minHeight: constraints.maxHeight - AppSpacing.xxl * 2,
+          minHeight: constraints.maxHeight -
+              (isCompactHeight ? AppSpacing.lg * 2 : AppSpacing.xxl * 2),
         ),
         child: IntrinsicHeight(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: AppSpacing.lg),
-              _buildHeroGraphic(context),
-              const SizedBox(height: AppSpacing.xxl),
-              _buildTextContent(context, isWide: false),
+              SizedBox(height: isCompactHeight ? AppSpacing.xs : AppSpacing.lg),
+              _buildHeroGraphic(context, size: graphicSize),
+              SizedBox(
+                  height: isCompactHeight ? AppSpacing.lg : AppSpacing.xxl),
+              _buildTextContent(context,
+                  isWide: false, isCompactHeight: isCompactHeight),
               const Spacer(),
-              const SizedBox(height: AppSpacing.xxl),
+              SizedBox(
+                  height: isCompactHeight ? AppSpacing.lg : AppSpacing.xxl),
               _buildActionArea(context, isWide: false),
-              const SizedBox(height: AppSpacing.md),
             ],
           ),
         ),
@@ -94,84 +103,94 @@ class HomeSection extends StatelessWidget {
     );
   }
 
-  Widget _buildHeroGraphic(BuildContext context) {
+  Widget _buildHeroGraphic(BuildContext context, {double size = 320.0}) {
     final scheme = Theme.of(context).colorScheme;
+    final centerCircleSize = size * 0.43; // 140 / 320
+    final iconSize = centerCircleSize * 0.45; // 64 / 140
+    final badgeSize = (size * 0.0625).clamp(14.0, 24.0); // 20 / 320
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // 呼吸感光晕背景
-        Container(
-          width: 320,
-          height: 320,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [
-                scheme.primary.withValues(alpha: 0.12),
-                scheme.tertiary.withValues(alpha: 0.08),
-                scheme.surface.withValues(alpha: 0.0),
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // 呼吸感光晕背景
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  scheme.primary.withValues(alpha: 0.12),
+                  scheme.tertiary.withValues(alpha: 0.08),
+                  scheme.surface.withValues(alpha: 0.0),
+                ],
+                stops: const [0.2, 0.5, 1.0],
+              ),
+            ),
+          ),
+          // 核心 Icon
+          Container(
+            width: centerCircleSize,
+            height: centerCircleSize,
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.shadow.withValues(alpha: 0.05),
+                  blurRadius: size * 0.075,
+                  offset: Offset(0, size * 0.025),
+                ),
               ],
-              stops: const [0.2, 0.5, 1.0],
-            ),
-          ),
-        ),
-        // 核心 Icon
-        Container(
-          width: 140,
-          height: 140,
-          decoration: BoxDecoration(
-            color: scheme.surface,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: scheme.shadow.withValues(alpha: 0.05),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: 0.4),
+                width: 1,
               ),
-            ],
-            border: Border.all(
-              color: scheme.outlineVariant.withValues(alpha: 0.4),
-              width: 1,
             ),
-          ),
-          child: Center(
-            child: ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [scheme.primary, scheme.tertiary],
-              ).createShader(bounds),
-              child: const Icon(
-                Icons.query_stats_rounded,
-                size: 64,
-                color: Colors.white, // Required for ShaderMask
+            child: Center(
+              child: ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [scheme.primary, scheme.tertiary],
+                ).createShader(bounds),
+                child: Icon(
+                  Icons.query_stats_rounded,
+                  size: iconSize,
+                  color: Colors.white, // Required for ShaderMask
+                ),
               ),
             ),
           ),
-        ),
-        // Small floating decorative elements
-        Positioned(
-          top: 40,
-          right: 60,
-          child: _FloatingBadge(
-            icon: Icons.auto_awesome_rounded,
-            color: scheme.primary,
+          // Small floating decorative elements
+          Positioned(
+            top: size * 0.125,
+            right: size * 0.1875,
+            child: _FloatingBadge(
+              icon: Icons.auto_awesome_rounded,
+              color: scheme.primary,
+              size: badgeSize,
+            ),
           ),
-        ),
-        Positioned(
-          bottom: 50,
-          left: 70,
-          child: _FloatingBadge(
-            icon: Icons.insights_rounded,
-            color: scheme.tertiary,
+          Positioned(
+            bottom: size * 0.156,
+            left: size * 0.218,
+            child: _FloatingBadge(
+              icon: Icons.insights_rounded,
+              color: scheme.tertiary,
+              size: badgeSize,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildTextContent(BuildContext context, {required bool isWide}) {
+  Widget _buildTextContent(BuildContext context,
+      {required bool isWide, bool isCompactHeight = false}) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final strings = AppStrings.of(context);
@@ -207,7 +226,7 @@ class HomeSection extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.xl),
+        SizedBox(height: isCompactHeight ? AppSpacing.md : AppSpacing.xl),
         // Title
         Text(
           appShortName,
@@ -219,28 +238,28 @@ class HomeSection extends StatelessWidget {
             color: scheme.onSurface,
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
+        SizedBox(height: isCompactHeight ? 4 : AppSpacing.sm),
         // Subtitle
         Text(
           appFullName,
           textAlign: textAlign,
-          style: theme.textTheme.titleLarge?.copyWith(
+          style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
             color: scheme.onSurfaceVariant,
             height: 1.3,
           ),
         ),
-        const SizedBox(height: AppSpacing.xl),
+        SizedBox(height: isCompactHeight ? AppSpacing.md : AppSpacing.xl),
         // Intro
         Text(
           strings.homeIntro,
           textAlign: textAlign,
-          style: theme.textTheme.bodyLarge?.copyWith(
+          style: theme.textTheme.bodyMedium?.copyWith(
             color: scheme.onSurfaceVariant,
-            height: 1.6,
+            height: 1.5,
           ),
         ),
-        const SizedBox(height: AppSpacing.xxl),
+        SizedBox(height: isCompactHeight ? AppSpacing.lg : AppSpacing.xxl),
         // Meta Info Inline
         _buildInlineMeta(context, isWide: isWide),
 
@@ -272,23 +291,22 @@ class HomeSection extends StatelessWidget {
       spacing: AppSpacing.lg,
       runSpacing: AppSpacing.md,
       alignment: isWide ? WrapAlignment.start : WrapAlignment.center,
-      children:
-          items.map((item) {
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(item.$1, size: 18, color: scheme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  item.$2,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+      children: items.map((item) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(item.$1, size: 18, color: scheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              item.$2,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: scheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
-                ),
-              ],
-            );
-          }).toList(),
+            ),
+          ],
+        );
+      }).toList(),
     );
   }
 
@@ -302,12 +320,9 @@ class HomeSection extends StatelessWidget {
     final allAnswered = controller.allAnswered;
     final hasProgress = answered > 0;
 
-    final ctaLabel =
-        allAnswered
-            ? strings.homeRestartButton
-            : (hasProgress
-                ? strings.homeContinueButton
-                : strings.homeStartButton);
+    final ctaLabel = allAnswered
+        ? strings.homeRestartButton
+        : (hasProgress ? strings.homeContinueButton : strings.homeStartButton);
     final ctaIcon =
         allAnswered ? Icons.replay_rounded : Icons.play_arrow_rounded;
 
@@ -325,16 +340,16 @@ class HomeSection extends StatelessWidget {
               Text(
                 strings.homeProgressText(answered, total),
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: scheme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
               const SizedBox(width: 8),
               Text(
                 '${(progress * 100).toInt()}%',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
+                      color: scheme.onSurfaceVariant,
+                    ),
               ),
             ],
           ),
@@ -347,7 +362,6 @@ class HomeSection extends StatelessWidget {
           ),
           const SizedBox(height: 24),
         ],
-
         Wrap(
           spacing: AppSpacing.md,
           runSpacing: AppSpacing.md,
@@ -404,28 +418,29 @@ class HomeSection extends StatelessWidget {
 }
 
 class _FloatingBadge extends StatelessWidget {
-  const _FloatingBadge({required this.icon, required this.color});
+  const _FloatingBadge({required this.icon, required this.color, this.size = 20.0});
   final IconData icon;
   final Color color;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(size * 0.5),
       decoration: BoxDecoration(
         color: scheme.surface,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
             color: scheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            blurRadius: size * 0.8,
+            offset: Offset(0, size * 0.2),
           ),
         ],
         border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.3)),
       ),
-      child: Icon(icon, size: 20, color: color),
+      child: Icon(icon, size: size, color: color),
     );
   }
 }
