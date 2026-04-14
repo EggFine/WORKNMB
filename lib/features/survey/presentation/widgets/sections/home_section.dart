@@ -54,21 +54,30 @@ class HomeSection extends StatelessWidget {
                     children: [
                       _BrandMark(),
                       const SizedBox(height: AppSpacing.xl),
-                      Text(
-                        appShortName,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.displayMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 2,
+                      ShaderMask(
+                        shaderCallback: (bounds) => LinearGradient(
+                          colors: [scheme.primary, scheme.tertiary],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
+                        child: Text(
+                          appShortName,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.displayLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 4,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         appFullName,
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.titleMedium?.copyWith(
+                        style: theme.textTheme.titleLarge?.copyWith(
                           color: scheme.onSurfaceVariant,
                           height: 1.4,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xl),
@@ -120,26 +129,26 @@ class _BrandMark extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Container(
-      width: 96,
-      height: 96,
+      width: 120,
+      height: 120,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [scheme.primaryContainer, scheme.tertiaryContainer],
         ),
-        borderRadius: BorderRadius.circular(AppRadius.hero),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: scheme.primary.withValues(alpha: 0.18),
-            blurRadius: 32,
-            offset: const Offset(0, 12),
+            color: scheme.primary.withValues(alpha: 0.25),
+            blurRadius: 48,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
       child: Icon(
         Icons.query_stats_rounded,
-        size: 48,
+        size: 64,
         color: scheme.onPrimaryContainer,
       ),
     );
@@ -160,15 +169,15 @@ class _PrimaryCta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 56,
+      height: 64,
       child: FilledButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, size: AppIconSize.md),
+        icon: Icon(icon, size: 28),
         style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
+          padding: const EdgeInsets.symmetric(horizontal: 48),
           textStyle: Theme.of(
             context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
         ),
         label: Text(label),
       ),
@@ -184,42 +193,20 @@ class _MetaBullets extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
-    Widget dot() => Container(
-      width: 4,
-      height: 4,
-      decoration: BoxDecoration(
-        color: scheme.onSurfaceVariant,
-        shape: BoxShape.circle,
-      ),
-    );
-
-    final textStyle = theme.textTheme.labelLarge?.copyWith(
-      color: scheme.onSurfaceVariant,
-    );
-
-    // 题数 meta 显示方式：用 strings.homeProgressText 的前半段文案不合适，
-    // 这里直接用 "13 Q" / "13 问" 的本地化组合
     final String questionsLabel = switch (strings.locale.locale.languageCode) {
       'ja' => '$totalQuestions 問',
       'en' => '$totalQuestions Q',
       _ => '$totalQuestions 题',
     };
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      alignment: WrapAlignment.center,
       children: [
-        Text(questionsLabel, style: textStyle),
-        const SizedBox(width: AppSpacing.sm),
-        dot(),
-        const SizedBox(width: AppSpacing.sm),
-        Text(strings.homeMetaTime, style: textStyle),
-        const SizedBox(width: AppSpacing.sm),
-        dot(),
-        const SizedBox(width: AppSpacing.sm),
-        Text(strings.homeMetaFreeEdit, style: textStyle),
+        StatusChip(icon: Icons.format_list_numbered_rounded, label: questionsLabel),
+        StatusChip(icon: Icons.timer_outlined, label: strings.homeMetaTime),
+        StatusChip(icon: Icons.edit_note_rounded, label: strings.homeMetaFreeEdit),
       ],
     );
   }
