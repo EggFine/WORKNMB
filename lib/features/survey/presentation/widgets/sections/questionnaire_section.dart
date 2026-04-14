@@ -64,9 +64,9 @@ class QuestionnaireSection extends StatelessWidget {
 
         return Column(
           children: [
-            progressCard,
-            const SizedBox(height: AppSpacing.md),
             questionCard,
+            const SizedBox(height: AppSpacing.md),
+            progressCard,
           ],
         );
       },
